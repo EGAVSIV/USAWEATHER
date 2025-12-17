@@ -3,5 +3,5 @@ requests
 pandas
 matplotlib
 openpyxl
-tvDatafeed
+tradingview-datafeed
 
