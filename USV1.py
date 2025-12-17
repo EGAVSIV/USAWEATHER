@@ -27,23 +27,7 @@ def send_telegram(msg):
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         requests.post(url, data={"chat_id": chat, "text": msg})
 
-# =====================================================
-# UPDATE BUTTON
-# =====================================================
-if st.button("🔄 UPDATE NOW"):
-    st.cache_data.clear()
 
-    # Force Telegram alert check
-    if ng_day1 >= ALERT_LEVEL:
-        send_telegram(
-            f"🔄 MANUAL UPDATE ALERT\n"
-            f"Date: {DAY1_DATE}\n"
-            f"NG Index: {ng_day1}\n"
-            f"Triggered by UPDATE NOW button"
-        )
-        st.success("Telegram alert sent manually ✔")
-    else:
-        st.info("NG Index below alert level — no Telegram sent")
 
 
 # =====================================================
@@ -205,6 +189,24 @@ if total_population == 0:
 
 ng_day1 = int(min(100, (day1 / total_population) * 60))
 ng_day2 = int(min(100, (day2 / total_population) * 60))
+
+# =====================================================
+# MANUAL UPDATE BUTTON (AFTER NG INDEX IS READY)
+# =====================================================
+if st.button("🔄 UPDATE NOW"):
+    st.cache_data.clear()
+
+    if ng_day1 >= ALERT_LEVEL:
+        send_telegram(
+            f"🔄 MANUAL UPDATE ALERT\n"
+            f"Date: {DAY1_DATE}\n"
+            f"NG Index: {ng_day1}\n"
+            f"Triggered by UPDATE NOW button"
+        )
+        st.success("Telegram alert sent ✔")
+    else:
+        st.info("NG Index below alert level — no Telegram sent")
+
 
 # =====================================================
 # WEEKLY & MONTHLY NG BIAS (PROJECTION)
