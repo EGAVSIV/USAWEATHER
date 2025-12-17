@@ -232,6 +232,8 @@ st.dataframe(fetch_ng_news(), use_container_width=True)
 st.markdown("""
 ---
 **Designed by Gaurav Singh Yadav**  
+❤️ Built With Love 
 Energy | Commodity | Quant Intelligence  
 +91-8003994518
 """)
+
