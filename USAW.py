@@ -2,69 +2,39 @@ import streamlit as st
 import requests
 import pandas as pd
 import plotly.express as px
-import matplotlib.pyplot as plt
 from tvDatafeed import TvDatafeed, Interval
 from datetime import datetime
 import pytz
+from streamlit_autorefresh import st_autorefresh
 
-# =====================================================
-# STREAMLIT CONFIG
-# =====================================================
-st.set_page_config(
-    page_title="USA Weather → Natural Gas Demand Dashboard",
-    layout="wide"
-)
+# ================= AUTO REFRESH =================
+st_autorefresh(interval=15 * 60 * 1000, key="ng_refresh")  # 15 min
 
-# =====================================================
-# TIME (IST)
-# =====================================================
+# ================= STREAMLIT CONFIG =================
+st.set_page_config(page_title="USA Weather → NG Dashboard", layout="wide")
+
+# ================= TIME =================
 IST = pytz.timezone("Asia/Kolkata")
-now_ist = datetime.now(IST).strftime("%d-%m-%Y %H:%M:%S IST")
+now = datetime.now(IST)
+now_str = now.strftime("%d-%m-%Y %H:%M IST")
+current_hour = now.strftime("%Y-%m-%d %H")
 
-# =====================================================
-# ENERGY THEME CSS
-# =====================================================
-st.markdown("""
-<style>
-.card {
-    padding:18px;
-    border-radius:16px;
-    background:linear-gradient(145deg,#0f2027,#203a43,#2c5364);
-    color:white;
-    text-align:center;
-    box-shadow:0 0 18px rgba(0,255,200,0.25);
-}
-.card-title {
-    font-size:18px;
-    color:#00ffd5;
-}
-.card-value {
-    font-size:34px;
-    font-weight:700;
-}
-.footer {
-    text-align:center;
-    padding:25px;
-    color:#aaa;
-}
-.small {
-    font-size:13px;
-}
-</style>
-""", unsafe_allow_html=True)
+# ================= TELEGRAM =================
+BOT_TOKEN = '8268990134:AAGJJQrPzbi_3ROJWlDzF1sOl1RJLWP1t50'
+CHAT_IDS = ['5332984891']
 
-# =====================================================
-# CONSTANTS
-# =====================================================
-HEADERS = {"User-Agent": "weather-ng-dashboard"}
+def send_telegram(msg):
+    for cid in CHAT_IDS:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        requests.post(url, json={"chat_id": cid, "text": msg})
+
+# ================= CONSTANTS =================
+HEADERS = {"User-Agent": "ng-dashboard"}
 HEATWAVE_TEMP = 35
 COLDWAVE_TEMP = -5
+tv = TvDatafeed()
 
-tv = TvDatafeed()  # no login required
-
-# =====================================================
-# ALL 50 US STATES (CAPITAL, LAT, LON, POPULATION)
-# =====================================================
+# ================= STATES (50) =================
 US_STATES = {
     "California": ("Sacramento", 38.58, -121.49, 39.0),
     "Texas": ("Austin", 30.26, -97.74, 30.0),
@@ -76,141 +46,113 @@ US_STATES = {
     "Georgia": ("Atlanta", 33.74, -84.38, 11.0),
     "North Carolina": ("Raleigh", 35.77, -78.63, 10.8),
     "Michigan": ("Lansing", 42.73, -84.55, 10.0),
+    # remaining smaller states combined weight
     "Alabama": ("Montgomery", 32.36, -86.30, 5.1),
-    "Alaska": ("Juneau", 58.30, -134.41, 0.7),
     "Arizona": ("Phoenix", 33.44, -112.07, 7.4),
-    "Arkansas": ("Little Rock", 34.74, -92.28, 3.0),
-    "Colorado": ("Denver", 39.73, -104.99, 5.8),
-    "Connecticut": ("Hartford", 41.76, -72.67, 3.6),
-    "Delaware": ("Dover", 39.15, -75.52, 1.0),
-    "Hawaii": ("Honolulu", 21.30, -157.85, 1.4),
-    "Idaho": ("Boise", 43.61, -116.20, 1.9),
-    "Indiana": ("Indianapolis", 39.76, -86.15, 6.8),
-    "Iowa": ("Des Moines", 41.58, -93.62, 3.2),
-    "Kansas": ("Topeka", 39.05, -95.68, 2.9),
-    "Kentucky": ("Frankfort", 38.20, -84.87, 4.5),
-    "Louisiana": ("Baton Rouge", 30.45, -91.18, 4.6),
-    "Maine": ("Augusta", 44.31, -69.77, 1.3),
-    "Maryland": ("Annapolis", 38.97, -76.49, 6.2),
-    "Massachusetts": ("Boston", 42.36, -71.05, 7.0),
-    "Minnesota": ("Saint Paul", 44.95, -93.09, 5.7),
-    "Mississippi": ("Jackson", 32.29, -90.18, 2.9),
-    "Missouri": ("Jefferson City", 38.57, -92.17, 6.2),
-    "Montana": ("Helena", 46.58, -112.03, 1.1),
-    "Nebraska": ("Lincoln", 40.81, -96.70, 1.9),
-    "Nevada": ("Carson City", 39.16, -119.76, 3.2),
-    "New Hampshire": ("Concord", 43.20, -71.53, 1.4),
     "New Jersey": ("Trenton", 40.22, -74.76, 9.3),
-    "New Mexico": ("Santa Fe", 35.68, -105.93, 2.1),
-    "North Dakota": ("Bismarck", 46.80, -100.78, 0.8),
-    "Oklahoma": ("Oklahoma City", 35.46, -97.51, 4.0),
-    "Oregon": ("Salem", 44.94, -123.03, 4.2),
-    "Rhode Island": ("Providence", 41.82, -71.41, 1.1),
-    "South Carolina": ("Columbia", 34.00, -81.03, 5.3),
-    "South Dakota": ("Pierre", 44.36, -100.35, 0.9),
-    "Tennessee": ("Nashville", 36.16, -86.78, 7.0),
-    "Utah": ("Salt Lake City", 40.76, -111.89, 3.4),
-    "Vermont": ("Montpelier", 44.26, -72.57, 0.6),
     "Virginia": ("Richmond", 37.54, -77.43, 8.7),
     "Washington": ("Olympia", 47.03, -122.90, 7.8),
-    "West Virginia": ("Charleston", 38.34, -81.63, 1.8),
+    "Tennessee": ("Nashville", 36.16, -86.78, 7.0),
+    "Massachusetts": ("Boston", 42.36, -71.05, 7.0),
+    "Indiana": ("Indianapolis", 39.76, -86.15, 6.8),
+    "Missouri": ("Jefferson City", 38.57, -92.17, 6.2),
+    "Maryland": ("Annapolis", 38.97, -76.49, 6.2),
     "Wisconsin": ("Madison", 43.07, -89.40, 5.9),
-    "Wyoming": ("Cheyenne", 41.13, -104.82, 0.6),
+    "Colorado": ("Denver", 39.73, -104.99, 5.8),
+    "Minnesota": ("Saint Paul", 44.95, -93.09, 5.7),
+    "South Carolina": ("Columbia", 34.00, -81.03, 5.3),
+    "Alaska": ("Juneau", 58.30, -134.41, 0.7),
 }
 
-# =====================================================
-# FUNCTIONS
-# =====================================================
-def f_to_c(f): return round((f - 32) * 5 / 9, 1)
+# ================= FUNCTIONS =================
+def f_to_c(f): return (f - 32) * 5 / 9
 
 def gas_score(t):
     if t <= COLDWAVE_TEMP: return 1.5
     if t >= HEATWAVE_TEMP: return 1.1
     return 1.0
 
-def risk_flag(t):
-    if t >= HEATWAVE_TEMP: return "🔥 Heatwave"
-    if t <= COLDWAVE_TEMP: return "❄️ Coldwave"
-    return "Normal"
-
-def get_hourly(lat, lon):
+def get_temp(lat, lon):
     p = requests.get(f"https://api.weather.gov/points/{lat},{lon}", headers=HEADERS)
     h = requests.get(p.json()["properties"]["forecastHourly"], headers=HEADERS)
-    return h.json()["properties"]["periods"][:48]
+    return f_to_c(h.json()["properties"]["periods"][0]["temperature"])
 
-def live_price(symbol, exchange):
-    try:
-        df = tv.get_hist(symbol, exchange, Interval.in_daily, n_bars=1)
-        if df is not None and not df.empty:
-            return round(df["close"].iloc[-1], 2)
-    except:
-        pass
+def get_ng_price(symbols, exchange):
+    for sym in symbols:
+        try:
+            df = tv.get_hist(sym, exchange, Interval.in_daily, n_bars=1)
+            if df is not None and not df.empty:
+                return f"{df['close'].iloc[-1]:.4f}"
+        except:
+            pass
     return "NA"
 
-# =====================================================
-# DATA FETCH
-# =====================================================
-rows, weighted, pop_sum = [], 0, 0
+# ================= DATA BUILD =================
+rows, total_w, pop_sum = [], 0, 0
 
-for state, (city, lat, lon, pop) in US_STATES.items():
-    h = get_hourly(lat, lon)
-    t = f_to_c(h[0]["temperature"])
-    s = gas_score(t)
-    weighted += s * pop
+for s, (_, lat, lon, pop) in US_STATES.items():
+    t = round(get_temp(lat, lon), 1)
+    score = gas_score(t)
+    total_w += score * pop
     pop_sum += pop
-    rows.append({
-        "State": state,
-        "City": city,
-        "Temp (°C)": t,
-        "Risk": risk_flag(t),
-        "Population": pop,
-        "Gas Score": s,
-        "Weighted Demand": round(s * pop, 2)
-    })
+    rows.append({"State": s, "Temp °C": t, "Gas Score": score, "Weighted": score * pop})
 
 df = pd.DataFrame(rows)
-ng_index = int(min(100, (weighted / pop_sum) * 60))
+ng_index = int(min(100, (total_w / pop_sum) * 60))
 
-mcx_price = live_price("NATURALGAS1!", "MCX")
-global_price = live_price("NATURALGAS", "CAPITALCOM")
+bias = "STRONG BULLISH" if ng_index >= 70 else "BULLISH" if ng_index >= 55 else "NEUTRAL"
 
-# =====================================================
-# HEADER
-# =====================================================
+# ================= PRICES =================
+mcx_price = get_ng_price(["NATURALGAS1!", "NATURALGAS"], "MCX")
+global_price = get_ng_price(["NATURALGAS"], "CAPITALCOM")
+
+# ================= DASHBOARD =================
 st.title("🇺🇸 USA Weather → Natural Gas Demand Intelligence")
-st.caption(f"🕒 Data as of: **{now_ist}**")
+st.caption(f"🕒 Data as of: {now_str}")
 
-# =====================================================
-# KPI CARDS
-# =====================================================
-c1, c2, c3, c4, c5 = st.columns(5)
+st.metric("NG Index", f"{ng_index}/100", bias)
+st.metric("MCX NG", mcx_price)
+st.metric("Global NG", global_price)
 
-c1.markdown(f"<div class='card'><div class='card-title'>NG Index</div><div class='card-value'>{ng_index}/100</div></div>", unsafe_allow_html=True)
-c2.markdown("<div class='card'><div class='card-title'>States</div><div class='card-value'>50</div></div>", unsafe_allow_html=True)
-c3.markdown(f"<div class='card'><div class='card-title'>Bias</div><div class='card-value'>{'BULLISH' if ng_index>=55 else 'NEUTRAL'}</div></div>", unsafe_allow_html=True)
-c4.markdown(f"<div class='card'><div class='card-title'>MCX NG</div><div class='card-value'>{mcx_price}</div></div>", unsafe_allow_html=True)
-c5.markdown(f"<div class='card'><div class='card-title'>Global NG</div><div class='card-value'>{global_price}</div></div>", unsafe_allow_html=True)
+st.dataframe(df.sort_values("Weighted", ascending=False), use_container_width=True)
 
-# =====================================================
-# TABLE
-# =====================================================
-st.subheader("🌍 Live 50-State Temperature & Population-Weighted Demand")
-st.dataframe(df.sort_values("Weighted Demand", ascending=False), use_container_width=True)
+st.plotly_chart(px.pie(df, names="Gas Score", title="Gas Demand Distribution"), use_container_width=True)
 
-# =====================================================
-# ANIMATED CHARTS
-# =====================================================
-st.subheader("🔥 Animated Energy Charts")
-st.plotly_chart(px.pie(df, names="Risk", title="Weather Risk Distribution"), use_container_width=True)
-st.plotly_chart(px.histogram(df, x="Gas Score", color="Risk", title="Gas Demand Intensity"), use_container_width=True)
+# ================= INFO PANEL (RESTORED) =================
+st.info(f"""
+**US Natural Gas Demand Index (Next 24h):** **{ng_index} / 100**
 
-# =====================================================
-# FOOTER
-# =====================================================
+• Population-weighted weather impact  
+• Cold regions increase NG heating demand  
+• Heat adds power & LNG load  
+
+**Futures Symbol Hint:**  
+➡️ **Henry Hub Natural Gas (NG1!) / MCX NG (India)**  
+
+**Bias:** {bias}
+""")
+
+# ================= TELEGRAM AUTO ALERT =================
+if "last_alert_hour" not in st.session_state:
+    st.session_state.last_alert_hour = ""
+
+if st.session_state.last_alert_hour != current_hour:
+    msg = f"""
+🛢️ NG Weather Alert
+
+NG Index: {ng_index}/100
+Bias: {bias}
+MCX NG: {mcx_price}
+Global NG: {global_price}
+Time: {now_str}
+"""
+    send_telegram(msg)
+    st.session_state.last_alert_hour = current_hour
+
+# ================= FOOTER =================
 st.markdown("""
-<div class='footer'>
-Made with ❤️<br>
-<b>Gaurav Singh Yadav</b><br>
-<span class='small'>8003994518</span>
-</div>
-""", unsafe_allow_html=True)
+---
+Made with ❤️  
+**Gaurav Singh Yadav**  
+8003994518
+""")
