@@ -3,16 +3,23 @@ import requests
 import pandas as pd
 import plotly.express as px
 import matplotlib.pyplot as plt
-import time, socket, ssl
 from tvDatafeed import TvDatafeed, Interval
+from datetime import datetime
+import pytz
 
 # =====================================================
 # STREAMLIT CONFIG
 # =====================================================
 st.set_page_config(
-    page_title="USA Weather → Natural Gas Demand Intelligence",
+    page_title="USA Weather → Natural Gas Demand Dashboard",
     layout="wide"
 )
+
+# =====================================================
+# TIME (IST)
+# =====================================================
+IST = pytz.timezone("Asia/Kolkata")
+now_ist = datetime.now(IST).strftime("%d-%m-%Y %H:%M:%S IST")
 
 # =====================================================
 # ENERGY THEME CSS
@@ -21,27 +28,30 @@ st.markdown("""
 <style>
 .card {
     padding:18px;
-    border-radius:14px;
-    background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+    border-radius:16px;
+    background:linear-gradient(145deg,#0f2027,#203a43,#2c5364);
     color:white;
     text-align:center;
-    box-shadow:0 0 12px rgba(0,255,200,0.3);
+    box-shadow:0 0 18px rgba(0,255,200,0.25);
 }
-.card h1 {font-size:34px;margin:0;}
-.card h3 {color:#00ffcc;margin-bottom:6px;}
+.card-title {
+    font-size:18px;
+    color:#00ffd5;
+}
+.card-value {
+    font-size:34px;
+    font-weight:700;
+}
+.footer {
+    text-align:center;
+    padding:25px;
+    color:#aaa;
+}
+.small {
+    font-size:13px;
+}
 </style>
 """, unsafe_allow_html=True)
-
-# =====================================================
-# TELEGRAM CONFIG
-# =====================================================
-BOT_TOKEN = '8268990134:AAGJJQrPzbi_3ROJWlDzF1sOl1RJLWP1t50'
-CHAT_IDS = ['5332984891']
-
-def send_telegram(msg):
-    for cid in CHAT_IDS:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        requests.post(url, json={"chat_id": cid, "text": msg})
 
 # =====================================================
 # CONSTANTS
@@ -50,10 +60,10 @@ HEADERS = {"User-Agent": "weather-ng-dashboard"}
 HEATWAVE_TEMP = 35
 COLDWAVE_TEMP = -5
 
-tv = TvDatafeed()  # no login
+tv = TvDatafeed()  # no login required
 
 # =====================================================
-# ALL 50 STATES (INLINE – NO EXTERNAL FILE)
+# ALL 50 US STATES (CAPITAL, LAT, LON, POPULATION)
 # =====================================================
 US_STATES = {
     "California": ("Sacramento", 38.58, -121.49, 39.0),
@@ -123,46 +133,84 @@ def risk_flag(t):
     if t <= COLDWAVE_TEMP: return "❄️ Coldwave"
     return "Normal"
 
-def fetch_hourly(lat, lon):
+def get_hourly(lat, lon):
     p = requests.get(f"https://api.weather.gov/points/{lat},{lon}", headers=HEADERS)
     h = requests.get(p.json()["properties"]["forecastHourly"], headers=HEADERS)
     return h.json()["properties"]["periods"][:48]
 
+def live_price(symbol, exchange):
+    try:
+        df = tv.get_hist(symbol, exchange, Interval.in_daily, n_bars=1)
+        if df is not None and not df.empty:
+            return round(df["close"].iloc[-1], 2)
+    except:
+        pass
+    return "NA"
+
 # =====================================================
 # DATA FETCH
 # =====================================================
-rows = []
-weighted, pop_sum = 0, 0
+rows, weighted, pop_sum = [], 0, 0
 
 for state, (city, lat, lon, pop) in US_STATES.items():
-    h = fetch_hourly(lat, lon)
+    h = get_hourly(lat, lon)
     t = f_to_c(h[0]["temperature"])
     s = gas_score(t)
     weighted += s * pop
     pop_sum += pop
-    rows.append({"State": state, "Temp (°C)": t, "Risk": risk_flag(t), "Gas Score": s})
+    rows.append({
+        "State": state,
+        "City": city,
+        "Temp (°C)": t,
+        "Risk": risk_flag(t),
+        "Population": pop,
+        "Gas Score": s,
+        "Weighted Demand": round(s * pop, 2)
+    })
 
 df = pd.DataFrame(rows)
 ng_index = int(min(100, (weighted / pop_sum) * 60))
 
+mcx_price = live_price("NATURALGAS1!", "MCX")
+global_price = live_price("NATURALGAS", "CAPITALCOM")
+
 # =====================================================
-# MOBILE KPI CARDS
+# HEADER
 # =====================================================
-c1, c2, c3 = st.columns(3)
-c1.markdown(f"<div class='card'><h3>NG Index</h3><h1>{ng_index}/100</h1></div>", unsafe_allow_html=True)
-c2.markdown("<div class='card'><h3>States</h3><h1>50</h1></div>", unsafe_allow_html=True)
-c3.markdown(f"<div class='card'><h3>Bias</h3><h1>{'BULLISH' if ng_index>=55 else 'NEUTRAL'}</h1></div>", unsafe_allow_html=True)
+st.title("🇺🇸 USA Weather → Natural Gas Demand Intelligence")
+st.caption(f"🕒 Data as of: **{now_ist}**")
+
+# =====================================================
+# KPI CARDS
+# =====================================================
+c1, c2, c3, c4, c5 = st.columns(5)
+
+c1.markdown(f"<div class='card'><div class='card-title'>NG Index</div><div class='card-value'>{ng_index}/100</div></div>", unsafe_allow_html=True)
+c2.markdown("<div class='card'><div class='card-title'>States</div><div class='card-value'>50</div></div>", unsafe_allow_html=True)
+c3.markdown(f"<div class='card'><div class='card-title'>Bias</div><div class='card-value'>{'BULLISH' if ng_index>=55 else 'NEUTRAL'}</div></div>", unsafe_allow_html=True)
+c4.markdown(f"<div class='card'><div class='card-title'>MCX NG</div><div class='card-value'>{mcx_price}</div></div>", unsafe_allow_html=True)
+c5.markdown(f"<div class='card'><div class='card-title'>Global NG</div><div class='card-value'>{global_price}</div></div>", unsafe_allow_html=True)
+
+# =====================================================
+# TABLE
+# =====================================================
+st.subheader("🌍 Live 50-State Temperature & Population-Weighted Demand")
+st.dataframe(df.sort_values("Weighted Demand", ascending=False), use_container_width=True)
 
 # =====================================================
 # ANIMATED CHARTS
 # =====================================================
-st.markdown("### 🔥 Animated Energy Charts")
+st.subheader("🔥 Animated Energy Charts")
 st.plotly_chart(px.pie(df, names="Risk", title="Weather Risk Distribution"), use_container_width=True)
 st.plotly_chart(px.histogram(df, x="Gas Score", color="Risk", title="Gas Demand Intensity"), use_container_width=True)
 
 # =====================================================
-# TELEGRAM ALERT
+# FOOTER
 # =====================================================
-if st.button("📩 Send Telegram Alert"):
-    send_telegram(f"🛢️ NG Index: {ng_index}/100 | Bias: {'Bullish' if ng_index>=55 else 'Neutral'}")
-    st.success("Telegram alert sent ✅")
+st.markdown("""
+<div class='footer'>
+Made with ❤️<br>
+<b>Gaurav Singh Yadav</b><br>
+<span class='small'>8003994518</span>
+</div>
+""", unsafe_allow_html=True)
