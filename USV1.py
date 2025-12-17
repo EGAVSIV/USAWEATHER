@@ -166,7 +166,10 @@ def fetch_ng_news():
 
 # WEATHER → NG DEMAND
 # =====================================================
-day1, day2 = 0.0, 0.0
+# WEATHER → NG DEMAND
+# =====================================================
+day1 = 0.0
+day2 = 0.0
 total_population = 0.0
 
 with st.spinner("Fetching NOAA Weather Data..."):
@@ -182,16 +185,14 @@ with st.spinner("Fetching NOAA Weather Data..."):
         day2 += gas_score(t2) * population
         total_population += population
 
-# Demand Index
+# Safety check (important for cloud runs)
+if total_population == 0:
+    st.error("Weather data unavailable — cannot compute NG index")
+    st.stop()
+
 ng_day1 = int(min(100, (day1 / total_population) * 60))
 ng_day2 = int(min(100, (day2 / total_population) * 60))
 
-
-ng_day1 = int(min(100, (day1 / pop) * 60))
-ng_day2 = int(min(100, (day2 / pop) * 60))
-
-ng_week = int((ng_day1 + ng_day2) / 2)
-ng_month = int(min(100, ng_week + 5))
 
 # =====================================================
 # TELEGRAM ALERT
