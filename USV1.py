@@ -1,12 +1,12 @@
 # =====================================================
 # NG WEATHER → PRICE → NEWS INTELLIGENCE DASHBOARD
+# CLEAN, ORDER-SAFE, PRODUCTION VERSION
 # =====================================================
 
 import streamlit as st
 import requests
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 import feedparser
@@ -22,13 +22,10 @@ st.set_page_config(page_title="NG Intelligence Pro", layout="wide")
 BOT_TOKEN = "8268990134:AAGJJQrPzbi_3ROJWlDzF1sOl1RJLWP1t50"
 CHAT_IDS = ["5332984891"]
 
-def send_telegram(msg):
-    for chat in CHAT_IDS:
+def send_telegram(message: str):
+    for chat_id in CHAT_IDS:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        requests.post(url, data={"chat_id": chat, "text": msg})
-
-
-
+        requests.post(url, data={"chat_id": chat_id, "text": message})
 
 # =====================================================
 # CONSTANTS
@@ -43,7 +40,7 @@ DAY1_DATE = TODAY
 DAY2_DATE = TODAY + timedelta(days=1)
 
 # =====================================================
-# WEATHER STATES (POPULATION WEIGHTED)
+# US STATES (POPULATION WEIGHTED)
 # =====================================================
 US_STATES = {
     "California": ("Sacramento", 38.58, -121.49, 39.0),
@@ -99,32 +96,33 @@ US_STATES = {
     "Wyoming": ("Cheyenne", 41.13, -104.82, 0.6),
 }
 
+
 # =====================================================
 # FUNCTIONS
 # =====================================================
 def f_to_c(f):
     return (f - 32) * 5 / 9
 
-def gas_score(temp):
-    if temp <= COLDWAVE_TEMP:
+def gas_score(temp_c):
+    if temp_c <= COLDWAVE_TEMP:
         return 1.5
-    if temp >= HEATWAVE_TEMP:
+    if temp_c >= HEATWAVE_TEMP:
         return 1.1
     return 1.0
 
 def get_hourly(lat, lon):
-    p = requests.get(f"https://api.weather.gov/points/{lat},{lon}", headers=HEADERS)
-    if p.status_code != 200:
+    try:
+        p = requests.get(f"https://api.weather.gov/points/{lat},{lon}", headers=HEADERS)
+        if p.status_code != 200:
+            return []
+        url = p.json()["properties"]["forecastHourly"]
+        h = requests.get(url, headers=HEADERS)
+        if h.status_code != 200:
+            return []
+        return h.json()["properties"]["periods"][:48]
+    except:
         return []
-    url = p.json()["properties"]["forecastHourly"]
-    h = requests.get(url, headers=HEADERS)
-    if h.status_code != 200:
-        return []
-    return h.json()["properties"]["periods"][:48]
 
-# =====================================================
-# MCX NG PRICE — GROWW (SCRAPING)
-# =====================================================
 def fetch_mcx_ng_price():
     try:
         url = "https://groww.in/commodities/futures/mcx_naturalgas"
@@ -135,197 +133,120 @@ def fetch_mcx_ng_price():
     except:
         return None
 
-# =====================================================
-# HENRY HUB (FREE CSV)
-# =====================================================
-def henry_hub_price():
-    try:
-        r = requests.get("https://stooq.com/q/l/?s=ng.f&f=sd2t2ohlcv&h&e=csv")
-        return float(r.text.splitlines()[1].split(",")[6])
-    except:
-        return None
-
-# =====================================================
-# TOP 5 NG NEWS (GOOGLE RSS)
-# =====================================================
 def fetch_ng_news():
     feed = feedparser.parse(
         "https://news.google.com/rss/search?q=natural+gas+LNG+weather&hl=en-US&gl=US&ceid=US:en"
     )
-    news = []
+    rows = []
     for e in feed.entries[:5]:
-        news.append({
+        rows.append({
             "Date": e.published[:16],
             "Headline": e.title
         })
-    return pd.DataFrame(news)
+    return pd.DataFrame(rows)
 
-
-# WEATHER → NG DEMAND
 # =====================================================
-# WEATHER → NG DEMAND
+# WEATHER → NG DEMAND CALCULATION
 # =====================================================
-day1 = 0.0
-day2 = 0.0
+day1_weight = 0.0
+day2_weight = 0.0
 total_population = 0.0
 
 with st.spinner("Fetching NOAA Weather Data..."):
-    for state, (city, lat, lon, population) in US_STATES.items():
-        h = get_hourly(lat, lon)
-        if not h:
+    for _, (city, lat, lon, population) in US_STATES.items():
+        hourly = get_hourly(lat, lon)
+        if not hourly:
             continue
 
-        t1 = np.mean([f_to_c(x["temperature"]) for x in h[:24]])
-        t2 = np.mean([f_to_c(x["temperature"]) for x in h[24:]])
+        t1 = np.mean([f_to_c(h["temperature"]) for h in hourly[:24]])
+        t2 = np.mean([f_to_c(h["temperature"]) for h in hourly[24:]])
 
-        day1 += gas_score(t1) * population
-        day2 += gas_score(t2) * population
+        day1_weight += gas_score(t1) * population
+        day2_weight += gas_score(t2) * population
         total_population += population
 
-# Safety check (important for cloud runs)
 if total_population == 0:
-    st.error("Weather data unavailable — cannot compute NG index")
+    st.error("Weather data unavailable")
     st.stop()
 
 # =====================================================
-# CALCULATE NG INDEX
+# NG INDEX (DEFINED ONCE, USED EVERYWHERE)
 # =====================================================
-ng_day1 = int(min(100, (day1 / total_population) * 60))
-ng_day2 = int(min(100, (day2 / total_population) * 60))
+ng_day1 = int(min(100, (day1_weight / total_population) * 60))
+ng_day2 = int(min(100, (day2_weight / total_population) * 60))
 
 # =====================================================
-# MANUAL UPDATE BUTTON (ONLY PLACE IT HERE)
+# MANUAL UPDATE BUTTON (SAFE POSITION)
 # =====================================================
 if st.button("🔄 UPDATE NOW"):
-    st.cache_data.clear()
-
     if ng_day1 >= ALERT_LEVEL:
         send_telegram(
             f"🔄 MANUAL UPDATE ALERT\n"
             f"Date: {DAY1_DATE}\n"
             f"NG Index: {ng_day1}\n"
-            f"Triggered by UPDATE NOW button"
+            f"Triggered by UPDATE NOW"
         )
         st.success("Telegram alert sent ✔")
     else:
-        st.info("NG Index below alert level — no Telegram sent")
-
-
-
+        st.info("NG Index below alert level — no alert sent")
 
 # =====================================================
-# WEEKLY & MONTHLY NG BIAS (PROJECTION)
+# WEEKLY / MONTHLY BIAS
 # =====================================================
 ng_week = int(round((ng_day1 + ng_day2) / 2))
-ng_month = int(min(100, ng_week + 5))
-
+ng_month = min(100, ng_week + 5)
 
 # =====================================================
-# TELEGRAM ALERT (AUTO)
+# AUTO TELEGRAM ALERT (EVERY RUN)
 # =====================================================
 if ng_day1 >= ALERT_LEVEL:
     send_telegram(
         f"🚨 NG ALERT 🚨\n"
         f"Date: {DAY1_DATE}\n"
         f"NG Index: {ng_day1}\n"
-        f"STRONG WEATHER DRIVEN DEMAND"
+        f"Weather Driven Demand"
     )
 
 # =====================================================
-# DASHBOARD
+# DASHBOARD UI
 # =====================================================
 st.title("🔥 Natural Gas Weather–Price–News Intelligence")
 
-col1, col2, col3, col4 = st.columns(4)
-col1.metric(str(DAY1_DATE), ng_day1, "Bullish" if ng_day1 > 60 else "Neutral")
-col2.metric(str(DAY2_DATE), ng_day2, "Bullish" if ng_day2 > 60 else "Neutral")
-col3.metric("Weekly Bias", ng_week)
-col4.metric("Monthly Bias", ng_month)
+c1, c2, c3, c4 = st.columns(4)
+c1.metric(str(DAY1_DATE), ng_day1, "Bullish" if ng_day1 >= 60 else "Neutral")
+c2.metric(str(DAY2_DATE), ng_day2, "Bullish" if ng_day2 >= 60 else "Neutral")
+c3.metric("Weekly Bias", ng_week)
+c4.metric("Monthly Bias", ng_month)
 
 # =====================================================
 # PRICE PANEL
 # =====================================================
-mcx = fetch_mcx_ng_price()
-hh = henry_hub_price()
+mcx_price = fetch_mcx_ng_price()
 
-st.markdown("## 💰 Natural Gas Prices")
-
-price_df = pd.DataFrame({
-    "Instrument": ["MCX Natural Gas", "Henry Hub"],
-    "Price": [mcx, hh]
-})
-st.dataframe(price_df, use_container_width=True)
+st.subheader("💰 Natural Gas Prices")
+st.dataframe(pd.DataFrame({
+    "Instrument": ["MCX Natural Gas"],
+    "Price": [mcx_price]
+}), use_container_width=True)
 
 # =====================================================
-# CORRELATION INTELLIGENCE (AGGRESSIVE)
+# NEWS
 # =====================================================
-st.markdown("## 🧮 Correlation Intelligence — Trader View")
-
-corr_table = pd.DataFrame({
-    "Factor": ["Weather Demand", "Crude Oil", "Power Load"],
-    "Impact Strength": ["VERY HIGH 🔥", "MEDIUM ⚠️", "HIGH ⚡"],
-    "Why It Matters": [
-        "Heating demand explodes during cold waves",
-        "Energy sentiment & inflation hedge",
-        "Power generation + LNG draw"
-    ],
-    "NG Price Reaction": [
-        "Sharp upside spikes",
-        "Momentum confirmation",
-        "Sustained trend support"
-    ]
-})
-
-st.dataframe(corr_table, use_container_width=True)
+st.subheader("📰 Top 5 News Impacting Natural Gas")
+st.dataframe(fetch_ng_news(), use_container_width=True)
 
 # =====================================================
-# INTERPRETATION TABLE (EASY)
-# =====================================================
-st.markdown("## 📊 Easy Interpretation Guide")
-
-interp = pd.DataFrame({
-    "Condition": [
-        "NG Index > 70",
-        "NG Index 60–70",
-        "NG Index < 60",
-        "MCX > Henry Hub (Converted)"
-    ],
-    "Meaning": [
-        "Severe weather driven demand",
-        "Weather supportive but not extreme",
-        "No strong weather trigger",
-        "Indian prices overheating"
-    ],
-    "Trader Action": [
-        "BUY / HOLD LONG",
-        "BUY ON DIPS",
-        "WAIT / RANGE TRADE",
-        "Book profits / cautious longs"
-    ]
-})
-
-st.dataframe(interp.style.background_gradient(cmap="YlOrRd"), use_container_width=True)
-
-# =====================================================
-# TOP NEWS
-# =====================================================
-st.markdown("## 📰 Top 5 News Impacting Natural Gas")
-
-news_df = fetch_ng_news()
-st.dataframe(news_df, use_container_width=True)
-
-# =====================================================
-# FINAL VIEW
+# FINAL VERDICT
 # =====================================================
 st.success(f"""
 **Final Verdict**
 
 📅 Date: {DAY1_DATE}  
-🔥 Weather Bias: {"STRONG" if ng_day1 > 65 else "MODERATE"}  
-💰 MCX NG Price: {mcx}  
+🔥 NG Index: {ng_day1}  
+💰 MCX NG Price: {mcx_price}  
 
-➡️ Weather + News + Price aligned  
-➡️ Best suited for **positional NG trades**
+➡️ Weather-driven bias confirmed  
+➡️ Suitable for positional trades
 """)
 
 # =====================================================
@@ -333,9 +254,7 @@ st.success(f"""
 # =====================================================
 st.markdown("""
 ---
-**Designed by-  
-Gaurav Singh Yadav**  
-Made with ❤️    
-Energy | Commodity | Quant Intelligence   
+**Designed by Gaurav Singh Yadav**  
+Energy | Commodity | Quant Intelligence  
 +91-8003994518
 """)
