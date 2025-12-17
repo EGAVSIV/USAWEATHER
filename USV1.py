@@ -186,11 +186,14 @@ with st.spinner("Fetching NOAA Weather Data..."):
 if total_population == 0:
     st.error("Weather data unavailable — cannot compute NG index")
     st.stop()
-
-
+# =====================================================
+# CALCULATE NG INDEX (MUST COME FIRST)
+# =====================================================
+ng_day1 = int(min(100, (day1 / total_population) * 60))
+ng_day2 = int(min(100, (day2 / total_population) * 60))
 
 # =====================================================
-# MANUAL UPDATE BUTTON (AFTER NG INDEX IS READY)
+# MANUAL UPDATE BUTTON (USES ng_day1)
 # =====================================================
 if st.button("🔄 UPDATE NOW"):
     st.cache_data.clear()
@@ -206,9 +209,6 @@ if st.button("🔄 UPDATE NOW"):
     else:
         st.info("NG Index below alert level — no Telegram sent")
 
-
-ng_day1 = int(min(100, (day1 / total_population) * 60))
-ng_day2 = int(min(100, (day2 / total_population) * 60))
 
 
 # =====================================================
