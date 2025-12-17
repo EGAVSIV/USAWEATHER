@@ -33,6 +33,19 @@ def send_telegram(msg):
 if st.button("🔄 UPDATE NOW"):
     st.cache_data.clear()
 
+    # Force Telegram alert check
+    if ng_day1 >= ALERT_LEVEL:
+        send_telegram(
+            f"🔄 MANUAL UPDATE ALERT\n"
+            f"Date: {DAY1_DATE}\n"
+            f"NG Index: {ng_day1}\n"
+            f"Triggered by UPDATE NOW button"
+        )
+        st.success("Telegram alert sent manually ✔")
+    else:
+        st.info("NG Index below alert level — no Telegram sent")
+
+
 # =====================================================
 # CONSTANTS
 # =====================================================
