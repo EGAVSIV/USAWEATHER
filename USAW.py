@@ -249,7 +249,10 @@ with open("usa_weather_full.xlsx", "rb") as f:
 # =====================================================
 st.markdown("""
 ---
-❤️ Built With Love    
-**Gaurav Singh Yadav**  
-8003994518
+**Designed by:-  
+Gaurav Singh Yadav**   
+🩷💛🩵💙🩶💜🤍🤎💖  Built With Love 🫶  
+Energy | Commodity | Quant Intelligence 📶  
+📱 +91-8003994518 〽️   
+📧 yadav.gauravsingh@gmail.com ™️
 """)
