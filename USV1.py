@@ -193,6 +193,15 @@ if total_population == 0:
 ng_day1 = int(min(100, (day1 / total_population) * 60))
 ng_day2 = int(min(100, (day2 / total_population) * 60))
 
+# =====================================================
+# WEEKLY & MONTHLY NG BIAS (PROJECTION)
+# =====================================================
+ng_week = int(round((ng_day1 + ng_day2) / 2))
+
+# Monthly bias assumes persistence + small escalation
+ng_month = int(min(100, ng_week + 5))
+
+
 
 # =====================================================
 # TELEGRAM ALERT
