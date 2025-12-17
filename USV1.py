@@ -186,14 +186,17 @@ with st.spinner("Fetching NOAA Weather Data..."):
 if total_population == 0:
     st.error("Weather data unavailable — cannot compute NG index")
     st.stop()
+
 # =====================================================
 # CALCULATE NG INDEX (MUST COME FIRST)
 # =====================================================
 ng_day1 = int(min(100, (day1 / total_population) * 60))
 ng_day2 = int(min(100, (day2 / total_population) * 60))
 
+
+
 # =====================================================
-# MANUAL UPDATE BUTTON (USES ng_day1)
+# MANUAL UPDATE BUTTON (CORRECT POSITION)
 # =====================================================
 if st.button("🔄 UPDATE NOW"):
     st.cache_data.clear()
@@ -215,14 +218,11 @@ if st.button("🔄 UPDATE NOW"):
 # WEEKLY & MONTHLY NG BIAS (PROJECTION)
 # =====================================================
 ng_week = int(round((ng_day1 + ng_day2) / 2))
-
-# Monthly bias assumes persistence + small escalation
 ng_month = int(min(100, ng_week + 5))
 
 
-
 # =====================================================
-# TELEGRAM ALERT
+# TELEGRAM ALERT (AUTO)
 # =====================================================
 if ng_day1 >= ALERT_LEVEL:
     send_telegram(
