@@ -316,7 +316,7 @@ st.success(f"""
 # =====================================================
 st.markdown("""
 ---
-**Designed by Gaurav Singh Yadav**
-Made with ❤️
+**Designed by Gaurav Singh Yadav**  
+Made with ❤️    
 Energy | Commodity | Quant Intelligence
 """)
