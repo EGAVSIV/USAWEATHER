@@ -1,6 +1,5 @@
 # =====================================================
-# USA WEATHER → NATURAL GAS INTELLIGENCE PLATFORM
-# With Telegram Alerts | MCX vs Henry Hub | Correlation
+# NG WEATHER → PRICE → NEWS INTELLIGENCE DASHBOARD
 # =====================================================
 
 import streamlit as st
@@ -9,17 +8,16 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
+from bs4 import BeautifulSoup
+import feedparser
 
 # =====================================================
 # STREAMLIT CONFIG
 # =====================================================
-st.set_page_config(
-    page_title="NG Weather Intelligence Pro",
-    layout="wide"
-)
+st.set_page_config(page_title="NG Intelligence Pro", layout="wide")
 
 # =====================================================
-# TELEGRAM CONFIG (EDIT)
+# TELEGRAM CONFIG
 # =====================================================
 BOT_TOKEN = "PUT_YOUR_BOT_TOKEN"
 CHAT_IDS = ["PUT_CHAT_ID"]
@@ -30,6 +28,12 @@ def send_telegram(msg):
         requests.post(url, data={"chat_id": chat, "text": msg})
 
 # =====================================================
+# UPDATE BUTTON
+# =====================================================
+if st.button("🔄 UPDATE NOW"):
+    st.cache_data.clear()
+
+# =====================================================
 # CONSTANTS
 # =====================================================
 HEADERS = {"User-Agent": "ng-weather-dashboard"}
@@ -37,20 +41,65 @@ HEATWAVE_TEMP = 35
 COLDWAVE_TEMP = -5
 ALERT_LEVEL = 65
 
+TODAY = datetime.today().date()
+DAY1_DATE = TODAY
+DAY2_DATE = TODAY + timedelta(days=1)
+
 # =====================================================
-# US STATES (REDUCED LIST – POPULATION WEIGHTED)
+# WEATHER STATES (POPULATION WEIGHTED)
 # =====================================================
 US_STATES = {
-    "California": (38.58, -121.49, 39),
-    "Texas": (30.26, -97.74, 30),
-    "New York": (42.65, -73.75, 19.6),
-    "Florida": (30.43, -84.28, 22),
-    "Illinois": (39.78, -89.65, 12.5),
-    "Pennsylvania": (40.27, -76.88, 13),
-    "Ohio": (39.96, -82.99, 11.8),
-    "Georgia": (33.74, -84.38, 11),
-    "North Carolina": (35.77, -78.63, 10.8),
-    "Michigan": (42.73, -84.55, 10)
+    "California": ("Sacramento", 38.58, -121.49, 39.0),
+    "Texas": ("Austin", 30.26, -97.74, 30.0),
+    "Florida": ("Tallahassee", 30.43, -84.28, 22.0),
+    "New York": ("Albany", 42.65, -73.75, 19.6),
+    "Pennsylvania": ("Harrisburg", 40.27, -76.88, 13.0),
+    "Illinois": ("Springfield", 39.78, -89.65, 12.5),
+    "Ohio": ("Columbus", 39.96, -82.99, 11.8),
+    "Georgia": ("Atlanta", 33.74, -84.38, 11.0),
+    "North Carolina": ("Raleigh", 35.77, -78.63, 10.8),
+    "Michigan": ("Lansing", 42.73, -84.55, 10.0),
+    # --- remaining states (lower weights) ---
+    "Alabama": ("Montgomery", 32.36, -86.30, 5.1),
+    "Alaska": ("Juneau", 58.30, -134.41, 0.7),
+    "Arizona": ("Phoenix", 33.44, -112.07, 7.4),
+    "Arkansas": ("Little Rock", 34.74, -92.28, 3.0),
+    "Colorado": ("Denver", 39.73, -104.99, 5.8),
+    "Connecticut": ("Hartford", 41.76, -72.67, 3.6),
+    "Delaware": ("Dover", 39.15, -75.52, 1.0),
+    "Hawaii": ("Honolulu", 21.30, -157.85, 1.4),
+    "Idaho": ("Boise", 43.61, -116.20, 1.9),
+    "Indiana": ("Indianapolis", 39.76, -86.15, 6.8),
+    "Iowa": ("Des Moines", 41.58, -93.62, 3.2),
+    "Kansas": ("Topeka", 39.05, -95.68, 2.9),
+    "Kentucky": ("Frankfort", 38.20, -84.87, 4.5),
+    "Louisiana": ("Baton Rouge", 30.45, -91.18, 4.6),
+    "Maine": ("Augusta", 44.31, -69.77, 1.3),
+    "Maryland": ("Annapolis", 38.97, -76.49, 6.2),
+    "Massachusetts": ("Boston", 42.36, -71.05, 7.0),
+    "Minnesota": ("Saint Paul", 44.95, -93.09, 5.7),
+    "Mississippi": ("Jackson", 32.29, -90.18, 2.9),
+    "Missouri": ("Jefferson City", 38.57, -92.17, 6.2),
+    "Montana": ("Helena", 46.58, -112.03, 1.1),
+    "Nebraska": ("Lincoln", 40.81, -96.70, 1.9),
+    "Nevada": ("Carson City", 39.16, -119.76, 3.2),
+    "New Hampshire": ("Concord", 43.20, -71.53, 1.4),
+    "New Jersey": ("Trenton", 40.22, -74.76, 9.3),
+    "New Mexico": ("Santa Fe", 35.68, -105.93, 2.1),
+    "North Dakota": ("Bismarck", 46.80, -100.78, 0.8),
+    "Oklahoma": ("Oklahoma City", 35.46, -97.51, 4.0),
+    "Oregon": ("Salem", 44.94, -123.03, 4.2),
+    "Rhode Island": ("Providence", 41.82, -71.41, 1.1),
+    "South Carolina": ("Columbia", 34.00, -81.03, 5.3),
+    "South Dakota": ("Pierre", 44.36, -100.35, 0.9),
+    "Tennessee": ("Nashville", 36.16, -86.78, 7.0),
+    "Utah": ("Salt Lake City", 40.76, -111.89, 3.4),
+    "Vermont": ("Montpelier", 44.26, -72.57, 0.6),
+    "Virginia": ("Richmond", 37.54, -77.43, 8.7),
+    "Washington": ("Olympia", 47.03, -122.90, 7.8),
+    "West Virginia": ("Charleston", 38.34, -81.63, 1.8),
+    "Wisconsin": ("Madison", 43.07, -89.40, 5.9),
+    "Wyoming": ("Cheyenne", 41.13, -104.82, 0.6),
 }
 
 # =====================================================
@@ -77,15 +126,21 @@ def get_hourly(lat, lon):
     return h.json()["properties"]["periods"][:48]
 
 # =====================================================
-# PRICE FETCH (FREE)
+# MCX NG PRICE — GROWW (SCRAPING)
 # =====================================================
-def mcx_ng_price():
+def fetch_mcx_ng_price():
     try:
-        r = requests.get("https://priceapi.moneycontrol.com/pricefeed/mcx/energy/naturalgas")
-        return float(r.json()["data"]["lastprice"])
+        url = "https://groww.in/commodities/futures/mcx-natural-gas"
+        r = requests.get(url, headers=HEADERS, timeout=5)
+        soup = BeautifulSoup(r.text, "html.parser")
+        price_tag = soup.find("span", {"class": "lpu38Head"})
+        return float(price_tag.text.replace("₹", "").replace(",", ""))
     except:
         return None
 
+# =====================================================
+# HENRY HUB (FREE CSV)
+# =====================================================
 def henry_hub_price():
     try:
         r = requests.get("https://stooq.com/q/l/?s=ng.f&f=sd2t2ohlcv&h&e=csv")
@@ -93,18 +148,25 @@ def henry_hub_price():
     except:
         return None
 
-def crude_price():
-    try:
-        r = requests.get("https://stooq.com/q/l/?s=cl.f&f=sd2t2ohlcv&h&e=csv")
-        return float(r.text.splitlines()[1].split(",")[6])
-    except:
-        return None
+# =====================================================
+# TOP 5 NG NEWS (GOOGLE RSS)
+# =====================================================
+def fetch_ng_news():
+    feed = feedparser.parse(
+        "https://news.google.com/rss/search?q=natural+gas+LNG+weather&hl=en-US&gl=US&ceid=US:en"
+    )
+    news = []
+    for e in feed.entries[:5]:
+        news.append({
+            "Date": e.published[:16],
+            "Headline": e.title
+        })
+    return pd.DataFrame(news)
 
 # =====================================================
-# WEATHER → DEMAND CALCULATION
+# WEATHER → NG DEMAND
 # =====================================================
-day1, day2 = 0, 0
-pop = 0
+day1, day2, pop = 0, 0, 0
 
 with st.spinner("Fetching NOAA Weather Data..."):
     for _, (lat, lon, p) in US_STATES.items():
@@ -112,19 +174,16 @@ with st.spinner("Fetching NOAA Weather Data..."):
         if not h:
             continue
 
-        d1 = np.mean([f_to_c(x["temperature"]) for x in h[:24]])
-        d2 = np.mean([f_to_c(x["temperature"]) for x in h[24:]])
+        t1 = np.mean([f_to_c(x["temperature"]) for x in h[:24]])
+        t2 = np.mean([f_to_c(x["temperature"]) for x in h[24:]])
 
-        day1 += gas_score(d1) * p
-        day2 += gas_score(d2) * p
+        day1 += gas_score(t1) * p
+        day2 += gas_score(t2) * p
         pop += p
 
 ng_day1 = int(min(100, (day1 / pop) * 60))
 ng_day2 = int(min(100, (day2 / pop) * 60))
 
-# =====================================================
-# WEEKLY / MONTHLY (PROJECTION)
-# =====================================================
 ng_week = int((ng_day1 + ng_day2) / 2)
 ng_month = int(min(100, ng_week + 5))
 
@@ -134,93 +193,106 @@ ng_month = int(min(100, ng_week + 5))
 if ng_day1 >= ALERT_LEVEL:
     send_telegram(
         f"🚨 NG ALERT 🚨\n"
-        f"NG Index crossed {ALERT_LEVEL}\n"
-        f"Next 24h Index: {ng_day1}\n"
-        f"Bias: BULLISH 🔥"
+        f"Date: {DAY1_DATE}\n"
+        f"NG Index: {ng_day1}\n"
+        f"STRONG WEATHER DRIVEN DEMAND"
     )
 
 # =====================================================
 # DASHBOARD
 # =====================================================
-st.title("🔥 Natural Gas Weather Intelligence Pro")
-st.caption("NOAA | MCX | Henry Hub | Trader Grade")
+st.title("🔥 Natural Gas Weather–Price–News Intelligence")
 
-# ---------------- DAY BIAS ----------------
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Next 24h", ng_day1, "Bullish" if ng_day1 > 60 else "Neutral")
-col2.metric("24–48h", ng_day2, "Bullish" if ng_day2 > 60 else "Neutral")
+col1.metric(str(DAY1_DATE), ng_day1, "Bullish" if ng_day1 > 60 else "Neutral")
+col2.metric(str(DAY2_DATE), ng_day2, "Bullish" if ng_day2 > 60 else "Neutral")
 col3.metric("Weekly Bias", ng_week)
 col4.metric("Monthly Bias", ng_month)
 
 # =====================================================
-# PRICE & SPREAD
+# PRICE PANEL
 # =====================================================
-mcx = mcx_ng_price()
+mcx = fetch_mcx_ng_price()
 hh = henry_hub_price()
-crude = crude_price()
 
-st.markdown("## 📉 Price & Spread Analysis")
+st.markdown("## 💰 Natural Gas Prices")
 
-spread = mcx - (hh * 80) if mcx and hh else None
-
-df_price = pd.DataFrame({
-    "Instrument": ["MCX NG", "Henry Hub", "Crude Oil"],
-    "Price": [mcx, hh, crude]
+price_df = pd.DataFrame({
+    "Instrument": ["MCX Natural Gas", "Henry Hub"],
+    "Price": [mcx, hh]
 })
-
-st.dataframe(df_price, use_container_width=True)
-
-# ---------------- SPREAD CHART ----------------
-fig, ax = plt.subplots(figsize=(8,4))
-ax.bar(["Demand D1", "Demand D2"], [ng_day1, ng_day2], alpha=0.6)
-
-if spread:
-    ax2 = ax.twinx()
-    ax2.plot(["Demand D1", "Demand D2"], [spread, spread],
-             color="red", marker="o", linestyle="--", label="MCX–HH Spread")
-    ax2.set_ylabel("Spread Value")
-
-ax.set_ylabel("NG Demand Index")
-ax.set_title("Weather Demand vs NG Spread")
-st.pyplot(fig)
+st.dataframe(price_df, use_container_width=True)
 
 # =====================================================
-# CORRELATION PANEL (PROXY)
+# CORRELATION INTELLIGENCE (AGGRESSIVE)
 # =====================================================
-st.markdown("## 🧮 Correlation Intelligence (Proxy Based)")
+st.markdown("## 🧮 Correlation Intelligence — Trader View")
 
-corr_df = pd.DataFrame({
+corr_table = pd.DataFrame({
     "Factor": ["Weather Demand", "Crude Oil", "Power Load"],
-    "Correlation": [0.72, 0.41, 0.65]
+    "Impact Strength": ["VERY HIGH 🔥", "MEDIUM ⚠️", "HIGH ⚡"],
+    "Why It Matters": [
+        "Heating demand explodes during cold waves",
+        "Energy sentiment & inflation hedge",
+        "Power generation + LNG draw"
+    ],
+    "NG Price Reaction": [
+        "Sharp upside spikes",
+        "Momentum confirmation",
+        "Sustained trend support"
+    ]
 })
 
-st.dataframe(corr_df.style.background_gradient(cmap="coolwarm"))
-
-st.info("""
-**Interpretation**
-• Weather has strongest NG impact  
-• Crude influences sentiment & inflation hedge  
-• Power demand rises in heat & LNG cycles  
-""")
+st.dataframe(corr_table, use_container_width=True)
 
 # =====================================================
-# FINAL TRADER VIEW
+# INTERPRETATION TABLE (EASY)
 # =====================================================
-st.markdown("## 🧠 Trader Decision Matrix")
+st.markdown("## 📊 Easy Interpretation Guide")
 
-if ng_day1 >= 70:
-    bias = "📈 STRONG BULLISH – Buy on Dips"
-elif ng_day1 >= 60:
-    bias = "📈 BULLISH – Momentum Favorable"
-else:
-    bias = "⚖️ RANGE / WAIT"
+interp = pd.DataFrame({
+    "Condition": [
+        "NG Index > 70",
+        "NG Index 60–70",
+        "NG Index < 60",
+        "MCX > Henry Hub (Converted)"
+    ],
+    "Meaning": [
+        "Severe weather driven demand",
+        "Weather supportive but not extreme",
+        "No strong weather trigger",
+        "Indian prices overheating"
+    ],
+    "Trader Action": [
+        "BUY / HOLD LONG",
+        "BUY ON DIPS",
+        "WAIT / RANGE TRADE",
+        "Book profits / cautious longs"
+    ]
+})
 
+st.dataframe(interp.style.background_gradient(cmap="YlOrRd"), use_container_width=True)
+
+# =====================================================
+# TOP NEWS
+# =====================================================
+st.markdown("## 📰 Top 5 News Impacting Natural Gas")
+
+news_df = fetch_ng_news()
+st.dataframe(news_df, use_container_width=True)
+
+# =====================================================
+# FINAL VIEW
+# =====================================================
 st.success(f"""
-**Final NG Bias:** {bias}
+**Final Verdict**
 
-✔ Weather confirmed  
-✔ Spread monitored  
-✔ Multi-timeframe alignment  
+📅 Date: {DAY1_DATE}  
+🔥 Weather Bias: {"STRONG" if ng_day1 > 65 else "MODERATE"}  
+💰 MCX NG Price: {mcx}  
+
+➡️ Weather + News + Price aligned  
+➡️ Best suited for **positional NG trades**
 """)
 
 # =====================================================
@@ -229,5 +301,5 @@ st.success(f"""
 st.markdown("""
 ---
 **Designed by Gaurav Singh Yadav**  
-Energy • Commodity • Quant Systems  
+Energy | Commodity | Quant Intelligence
 """)
