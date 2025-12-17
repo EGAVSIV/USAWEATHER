@@ -318,5 +318,6 @@ st.markdown("""
 ---
 **Designed by Gaurav Singh Yadav**  
 Made with ❤️    
-Energy | Commodity | Quant Intelligence
+Energy | Commodity | Quant Intelligence   
++91-8003994518
 """)
