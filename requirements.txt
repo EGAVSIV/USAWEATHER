@@ -1,5 +1,7 @@
 streamlit
 requests
 pandas
-openpyxl
 matplotlib
+openpyxl
+tvDatafeed
+
