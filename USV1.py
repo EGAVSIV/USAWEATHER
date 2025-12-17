@@ -19,8 +19,8 @@ st.set_page_config(page_title="NG Intelligence Pro", layout="wide")
 # =====================================================
 # TELEGRAM CONFIG
 # =====================================================
-BOT_TOKEN = "PUT_YOUR_BOT_TOKEN"
-CHAT_IDS = ["PUT_CHAT_ID"]
+BOT_TOKEN = "8268990134:AAGJJQrPzbi_3ROJWlDzF1sOl1RJLWP1t50"
+CHAT_IDS = ["5332984891"]
 
 def send_telegram(msg):
     for chat in CHAT_IDS:
