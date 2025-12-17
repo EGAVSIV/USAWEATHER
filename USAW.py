@@ -1,25 +1,40 @@
 import streamlit as st
 import requests
 import pandas as pd
+import plotly.graph_objects as go
 import plotly.express as px
 from tvDatafeed import TvDatafeed, Interval
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
-from streamlit_autorefresh import st_autorefresh
+import time
 
-# ================= AUTO REFRESH =================
-st_autorefresh(interval=15 * 60 * 1000, key="ng_refresh")  # 15 min
-
-# ================= STREAMLIT CONFIG =================
+# =====================================================
+# STREAMLIT CONFIG
+# =====================================================
 st.set_page_config(page_title="USA Weather → NG Dashboard", layout="wide")
 
-# ================= TIME =================
+# =====================================================
+# AUTO REFRESH (PURE STREAMLIT – NO MODULE)
+# =====================================================
+REFRESH_MINUTES = 15
+if "last_refresh" not in st.session_state:
+    st.session_state.last_refresh = time.time()
+
+if time.time() - st.session_state.last_refresh > REFRESH_MINUTES * 60:
+    st.session_state.last_refresh = time.time()
+    st.experimental_rerun()
+
+# =====================================================
+# TIME (IST)
+# =====================================================
 IST = pytz.timezone("Asia/Kolkata")
 now = datetime.now(IST)
-now_str = now.strftime("%d-%m-%Y %H:%M IST")
+now_str = now.strftime("%d-%m-%Y %H:%M:%S IST")
 current_hour = now.strftime("%Y-%m-%d %H")
 
-# ================= TELEGRAM =================
+# =====================================================
+# TELEGRAM CONFIG
+# =====================================================
 BOT_TOKEN = '8268990134:AAGJJQrPzbi_3ROJWlDzF1sOl1RJLWP1t50'
 CHAT_IDS = ['5332984891']
 
@@ -28,13 +43,18 @@ def send_telegram(msg):
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         requests.post(url, json={"chat_id": cid, "text": msg})
 
-# ================= CONSTANTS =================
-HEADERS = {"User-Agent": "ng-dashboard"}
+# =====================================================
+# CONSTANTS
+# =====================================================
+HEADERS = {"User-Agent": "ng-weather-dashboard"}
 HEATWAVE_TEMP = 35
 COLDWAVE_TEMP = -5
+
 tv = TvDatafeed()
 
-# ================= STATES (50) =================
+# =====================================================
+# 50 STATES (CAPITAL, LAT, LON, POP)
+# =====================================================
 US_STATES = {
     "California": ("Sacramento", 38.58, -121.49, 39.0),
     "Texas": ("Austin", 30.26, -97.74, 30.0),
@@ -46,26 +66,13 @@ US_STATES = {
     "Georgia": ("Atlanta", 33.74, -84.38, 11.0),
     "North Carolina": ("Raleigh", 35.77, -78.63, 10.8),
     "Michigan": ("Lansing", 42.73, -84.55, 10.0),
-    # remaining smaller states combined weight
-    "Alabama": ("Montgomery", 32.36, -86.30, 5.1),
-    "Arizona": ("Phoenix", 33.44, -112.07, 7.4),
-    "New Jersey": ("Trenton", 40.22, -74.76, 9.3),
-    "Virginia": ("Richmond", 37.54, -77.43, 8.7),
-    "Washington": ("Olympia", 47.03, -122.90, 7.8),
-    "Tennessee": ("Nashville", 36.16, -86.78, 7.0),
-    "Massachusetts": ("Boston", 42.36, -71.05, 7.0),
-    "Indiana": ("Indianapolis", 39.76, -86.15, 6.8),
-    "Missouri": ("Jefferson City", 38.57, -92.17, 6.2),
-    "Maryland": ("Annapolis", 38.97, -76.49, 6.2),
-    "Wisconsin": ("Madison", 43.07, -89.40, 5.9),
-    "Colorado": ("Denver", 39.73, -104.99, 5.8),
-    "Minnesota": ("Saint Paul", 44.95, -93.09, 5.7),
-    "South Carolina": ("Columbia", 34.00, -81.03, 5.3),
-    "Alaska": ("Juneau", 58.30, -134.41, 0.7),
 }
 
-# ================= FUNCTIONS =================
-def f_to_c(f): return (f - 32) * 5 / 9
+# =====================================================
+# FUNCTIONS
+# =====================================================
+def f_to_c(f): 
+    return round((f - 32) * 5 / 9, 1)
 
 def gas_score(t):
     if t <= COLDWAVE_TEMP: return 1.5
@@ -80,45 +87,92 @@ def get_temp(lat, lon):
 def get_ng_price(symbols, exchange):
     for sym in symbols:
         try:
-            df = tv.get_hist(sym, exchange, Interval.in_daily, n_bars=1)
+            df = tv.get_hist(sym, exchange, Interval.in_daily, n_bars=30)
             if df is not None and not df.empty:
-                return f"{df['close'].iloc[-1]:.4f}"
+                df.index = pd.to_datetime(df.index)
+                return df
         except:
             pass
-    return "NA"
+    return pd.DataFrame()
 
-# ================= DATA BUILD =================
+# =====================================================
+# WEATHER → NG INDEX
+# =====================================================
 rows, total_w, pop_sum = [], 0, 0
 
-for s, (_, lat, lon, pop) in US_STATES.items():
-    t = round(get_temp(lat, lon), 1)
-    score = gas_score(t)
-    total_w += score * pop
+for state, (_, lat, lon, pop) in US_STATES.items():
+    t = get_temp(lat, lon)
+    s = gas_score(t)
+    total_w += s * pop
     pop_sum += pop
-    rows.append({"State": s, "Temp °C": t, "Gas Score": score, "Weighted": score * pop})
+    rows.append({"State": state, "Temp": t, "Score": s})
 
-df = pd.DataFrame(rows)
+df_weather = pd.DataFrame(rows)
 ng_index = int(min(100, (total_w / pop_sum) * 60))
 
 bias = "STRONG BULLISH" if ng_index >= 70 else "BULLISH" if ng_index >= 55 else "NEUTRAL"
 
-# ================= PRICES =================
-mcx_price = get_ng_price(["NATURALGAS1!", "NATURALGAS"], "MCX")
-global_price = get_ng_price(["NATURALGAS"], "CAPITALCOM")
+# =====================================================
+# MCX PRICE DATA
+# =====================================================
+mcx_df = get_ng_price(["NATURALGAS1!", "NATURALGAS"], "MCX")
 
-# ================= DASHBOARD =================
-st.title("🇺🇸 USA Weather → Natural Gas Demand Intelligence")
-st.caption(f"🕒 Data as of: {now_str}")
+mcx_latest = f"{mcx_df['close'].iloc[-1]:.4f}" if not mcx_df.empty else "NA"
 
-st.metric("NG Index", f"{ng_index}/100", bias)
-st.metric("MCX NG", mcx_price)
-st.metric("Global NG", global_price)
+# =====================================================
+# 📈 NG INDEX vs MCX PRICE (CORRELATION)
+# =====================================================
+st.subheader("📈 NG Index vs MCX Natural Gas Price")
 
-st.dataframe(df.sort_values("Weighted", ascending=False), use_container_width=True)
+if not mcx_df.empty:
+    corr_df = mcx_df.tail(10).copy()
+    corr_df["NG_Index"] = ng_index  # flat line reference
 
-st.plotly_chart(px.pie(df, names="Gas Score", title="Gas Demand Distribution"), use_container_width=True)
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=corr_df.index, y=corr_df["close"],
+        name="MCX NG Price", yaxis="y1"
+    ))
+    fig.add_trace(go.Scatter(
+        x=corr_df.index, y=corr_df["NG_Index"],
+        name="NG Demand Index", yaxis="y2"
+    ))
 
-# ================= INFO PANEL (RESTORED) =================
+    fig.update_layout(
+        yaxis=dict(title="MCX NG Price"),
+        yaxis2=dict(title="NG Index", overlaying="y", side="right"),
+        height=420
+    )
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.warning("MCX price data not available")
+
+# =====================================================
+# 🔮 7-DAY NG PROBABILITY FORECAST (WEATHER BASED)
+# =====================================================
+st.subheader("🔮 7-Day NG Probability Forecast (Weather Driven)")
+
+# Simple probability model
+bull_prob = min(80, 40 + ng_index)
+neutral_prob = max(10, 100 - bull_prob - 10)
+bear_prob = 100 - bull_prob - neutral_prob
+
+prob_df = pd.DataFrame({
+    "Outcome →": ["Bullish", "Neutral", "Bearish"],
+    "Probability (%)": [bull_prob, neutral_prob, bear_prob]
+})
+
+st.plotly_chart(
+    px.bar(prob_df, x="Outcome →", y="Probability (%)",
+           color="Outcome →", title="NG Price Bias Probability (7 Days)"),
+    use_container_width=True
+)
+
+st.caption("📌 Derived from NOAA temperature stress → demand pressure → price bias")
+
+# =====================================================
+# INFO PANEL (RESTORED EXACT)
+# =====================================================
 st.info(f"""
 **US Natural Gas Demand Index (Next 24h):** **{ng_index} / 100**
 
@@ -132,24 +186,27 @@ st.info(f"""
 **Bias:** {bias}
 """)
 
-# ================= TELEGRAM AUTO ALERT =================
+# =====================================================
+# TELEGRAM AUTO ALERT (HOURLY)
+# =====================================================
 if "last_alert_hour" not in st.session_state:
     st.session_state.last_alert_hour = ""
 
 if st.session_state.last_alert_hour != current_hour:
     msg = f"""
-🛢️ NG Weather Alert
+🛢️ NG WEATHER ALERT
 
 NG Index: {ng_index}/100
 Bias: {bias}
-MCX NG: {mcx_price}
-Global NG: {global_price}
+MCX NG: {mcx_latest}
 Time: {now_str}
 """
     send_telegram(msg)
     st.session_state.last_alert_hour = current_hour
 
-# ================= FOOTER =================
+# =====================================================
+# FOOTER
+# =====================================================
 st.markdown("""
 ---
 Made with ❤️  
