@@ -210,7 +210,7 @@ if ng_day1 >= ALERT_LEVEL:
 # =====================================================
 # DASHBOARD UI
 # =====================================================
-st.title("🔥 Natural Gas Weather–Price–News Intelligence")
+st.title("🔥 Natural Gas Weather–Price–News Intelligence🛢️〽️〽️")
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric(str(DAY1_DATE), ng_day1, "Bullish" if ng_day1 >= 60 else "Neutral")
@@ -256,8 +256,8 @@ st.markdown("""
 ---
 **Designed by:-  
 Gaurav Singh Yadav**   
-🩷💛🩵💙🩶🤍🤎💖  Built With Love 🫶  
-Energy | Commodity | Quant Intelligence 🇮🇳  
-📱 +91-8003994518   
-📧 yadav.gauravsingh@gmail.com
+🩷💛🩵💙🩶💜🤍🤎💖  Built With Love 🫶  
+Energy | Commodity | Quant Intelligence 📶  
+📱 +91-8003994518 〽️   
+📧 yadav.gauravsingh@gmail.com ™️
 """)
