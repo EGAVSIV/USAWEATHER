@@ -187,8 +187,7 @@ if total_population == 0:
     st.error("Weather data unavailable — cannot compute NG index")
     st.stop()
 
-ng_day1 = int(min(100, (day1 / total_population) * 60))
-ng_day2 = int(min(100, (day2 / total_population) * 60))
+
 
 # =====================================================
 # MANUAL UPDATE BUTTON (AFTER NG INDEX IS READY)
@@ -206,6 +205,10 @@ if st.button("🔄 UPDATE NOW"):
         st.success("Telegram alert sent ✔")
     else:
         st.info("NG Index below alert level — no Telegram sent")
+
+
+ng_day1 = int(min(100, (day1 / total_population) * 60))
+ng_day2 = int(min(100, (day2 / total_population) * 60))
 
 
 # =====================================================
