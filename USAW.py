@@ -249,7 +249,7 @@ with open("usa_weather_full.xlsx", "rb") as f:
 # =====================================================
 st.markdown("""
 ---
-Made with ❤️  
+❤️ Built With Love    
 **Gaurav Singh Yadav**  
 8003994518
 """)
