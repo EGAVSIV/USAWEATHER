@@ -163,13 +163,14 @@ def fetch_ng_news():
         })
     return pd.DataFrame(news)
 
-# =====================================================
+
 # WEATHER → NG DEMAND
 # =====================================================
-day1, day2, pop = 0, 0, 0
+day1, day2 = 0.0, 0.0
+total_population = 0.0
 
 with st.spinner("Fetching NOAA Weather Data..."):
-    for state, (city, lat, lon, pop) in US_STATES.items():
+    for state, (city, lat, lon, population) in US_STATES.items():
         h = get_hourly(lat, lon)
         if not h:
             continue
@@ -177,9 +178,14 @@ with st.spinner("Fetching NOAA Weather Data..."):
         t1 = np.mean([f_to_c(x["temperature"]) for x in h[:24]])
         t2 = np.mean([f_to_c(x["temperature"]) for x in h[24:]])
 
-        day1 += gas_score(t1) * p
-        day2 += gas_score(t2) * p
-        pop += p
+        day1 += gas_score(t1) * population
+        day2 += gas_score(t2) * population
+        total_population += population
+
+# Demand Index
+ng_day1 = int(min(100, (day1 / total_population) * 60))
+ng_day2 = int(min(100, (day2 / total_population) * 60))
+
 
 ng_day1 = int(min(100, (day1 / pop) * 60))
 ng_day2 = int(min(100, (day2 / pop) * 60))
