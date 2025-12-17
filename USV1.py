@@ -169,7 +169,7 @@ def fetch_ng_news():
 day1, day2, pop = 0, 0, 0
 
 with st.spinner("Fetching NOAA Weather Data..."):
-    for _, (lat, lon, p) in US_STATES.items():
+    for state, (city, lat, lon, pop) in US_STATES.items():
         h = get_hourly(lat, lon)
         if not h:
             continue
