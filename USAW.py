@@ -158,7 +158,7 @@ ng_index = int(min(100, (total_weighted_demand / total_population) * 60))
 # =====================================================
 # DASHBOARD
 # =====================================================
-st.title("🇺🇸 Weather → Natural Gas Demand Intelligence")
+st.title("USA Weather → Natural Gas Demand Intelligence_By Gs_Yadav")
 st.caption("NOAA Free Data | Trader-grade Energy & Commodity Bias")
 
 st.subheader("📊 State-wise Weather Summary")
