@@ -1,12 +1,12 @@
 # =====================================================
 # NG WEATHER → PRICE → NEWS INTELLIGENCE DASHBOARD
-# FINAL STABLE VERSION (NAMEERROR-PROOF)
+# CLEAN, ORDER-SAFE, PRODUCTION VERSION
 # =====================================================
 
 import streamlit as st
 import requests
-import numpy as np
 import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 import feedparser
@@ -38,14 +38,6 @@ ALERT_LEVEL = 65
 TODAY = datetime.today().date()
 DAY1_DATE = TODAY
 DAY2_DATE = TODAY + timedelta(days=1)
-
-# =====================================================
-# SAFE SESSION STATE (CRITICAL FIX)
-# =====================================================
-if "ng_day1" not in st.session_state:
-    st.session_state.ng_day1 = None
-if "ng_day2" not in st.session_state:
-    st.session_state.ng_day2 = None
 
 # =====================================================
 # US STATES (POPULATION WEIGHTED)
@@ -103,6 +95,7 @@ US_STATES = {
     "Wisconsin": ("Madison", 43.07, -89.40, 5.9),
     "Wyoming": ("Cheyenne", 41.13, -104.82, 0.6),
 }
+
 
 # =====================================================
 # FUNCTIONS
@@ -172,21 +165,25 @@ with st.spinner("Fetching NOAA Weather Data..."):
         day2_weight += gas_score(t2) * population
         total_population += population
 
-if total_population > 0:
-    st.session_state.ng_day1 = int(min(100, (day1_weight / total_population) * 60))
-    st.session_state.ng_day2 = int(min(100, (day2_weight / total_population) * 60))
+if total_population == 0:
+    st.error("Weather data unavailable")
+    st.stop()
 
 # =====================================================
-# UPDATE NOW BUTTON — ONLY PLACE TELEGRAM IS SENT
+# NG INDEX (DEFINED ONCE, USED EVERYWHERE)
+# =====================================================
+ng_day1 = int(min(100, (day1_weight / total_population) * 60))
+ng_day2 = int(min(100, (day2_weight / total_population) * 60))
+
+# =====================================================
+# MANUAL UPDATE BUTTON (SAFE POSITION)
 # =====================================================
 if st.button("🔄 UPDATE NOW"):
-    if st.session_state.ng_day1 is None:
-        st.warning("NG Index not ready yet")
-    elif st.session_state.ng_day1 >= ALERT_LEVEL:
+    if ng_day1 >= ALERT_LEVEL:
         send_telegram(
-            f"🔄 NG MANUAL ALERT\n"
+            f"🔄 MANUAL UPDATE ALERT\n"
             f"Date: {DAY1_DATE}\n"
-            f"NG Index: {st.session_state.ng_day1}\n"
+            f"NG Index: {ng_day1}\n"
             f"Triggered by UPDATE NOW"
         )
         st.success("Telegram alert sent ✔")
@@ -196,11 +193,19 @@ if st.button("🔄 UPDATE NOW"):
 # =====================================================
 # WEEKLY / MONTHLY BIAS
 # =====================================================
-if st.session_state.ng_day1 is not None and st.session_state.ng_day2 is not None:
-    ng_week = int(round((st.session_state.ng_day1 + st.session_state.ng_day2) / 2))
-    ng_month = min(100, ng_week + 5)
-else:
-    ng_week = ng_month = None
+ng_week = int(round((ng_day1 + ng_day2) / 2))
+ng_month = min(100, ng_week + 5)
+
+# =====================================================
+# AUTO TELEGRAM ALERT (EVERY RUN)
+# =====================================================
+if ng_day1 >= ALERT_LEVEL:
+    send_telegram(
+        f"🚨 NG ALERT 🚨\n"
+        f"Date: {DAY1_DATE}\n"
+        f"NG Index: {ng_day1}\n"
+        f"Weather Driven Demand"
+    )
 
 # =====================================================
 # DASHBOARD UI
@@ -208,8 +213,8 @@ else:
 st.title("🔥 Natural Gas Weather–Price–News Intelligence")
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric(str(DAY1_DATE), st.session_state.ng_day1)
-c2.metric(str(DAY2_DATE), st.session_state.ng_day2)
+c1.metric(str(DAY1_DATE), ng_day1, "Bullish" if ng_day1 >= 60 else "Neutral")
+c2.metric(str(DAY2_DATE), ng_day2, "Bullish" if ng_day2 >= 60 else "Neutral")
 c3.metric("Weekly Bias", ng_week)
 c4.metric("Monthly Bias", ng_month)
 
@@ -217,8 +222,12 @@ c4.metric("Monthly Bias", ng_month)
 # PRICE PANEL
 # =====================================================
 mcx_price = fetch_mcx_ng_price()
-st.subheader("💰 MCX Natural Gas Price")
-st.write(mcx_price)
+
+st.subheader("💰 Natural Gas Prices")
+st.dataframe(pd.DataFrame({
+    "Instrument": ["MCX Natural Gas"],
+    "Price": [mcx_price]
+}), use_container_width=True)
 
 # =====================================================
 # NEWS
@@ -227,13 +236,25 @@ st.subheader("📰 Top 5 News Impacting Natural Gas")
 st.dataframe(fetch_ng_news(), use_container_width=True)
 
 # =====================================================
+# FINAL VERDICT
+# =====================================================
+st.success(f"""
+**Final Verdict**
+
+📅 Date: {DAY1_DATE}  
+🔥 NG Index: {ng_day1}  
+💰 MCX NG Price: {mcx_price}  
+
+➡️ Weather-driven bias confirmed  
+➡️ Suitable for positional trades
+""")
+
+# =====================================================
 # FOOTER
 # =====================================================
 st.markdown("""
 ---
 **Designed by Gaurav Singh Yadav**  
-❤️ Built With Love 
 Energy | Commodity | Quant Intelligence  
 +91-8003994518
 """)
-
