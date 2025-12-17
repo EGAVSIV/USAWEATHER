@@ -130,7 +130,7 @@ def get_hourly(lat, lon):
 # =====================================================
 def fetch_mcx_ng_price():
     try:
-        url = "https://groww.in/commodities/futures/mcx-natural-gas"
+        url = "https://groww.in/commodities/futures/mcx_naturalgas"
         r = requests.get(url, headers=HEADERS, timeout=5)
         soup = BeautifulSoup(r.text, "html.parser")
         price_tag = soup.find("span", {"class": "lpu38Head"})
