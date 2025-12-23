@@ -40,32 +40,39 @@ st.set_page_config(
 )
 
 # =====================================================
-# 🔄 MANUAL + AUTO REFRESH (NO EXTERNAL LIB)
+# 🔄 MANUAL + AUTO REFRESH (STABLE VERSION)
 # =====================================================
+
+
 c1, c2, c3 = st.columns([1.2, 1.8, 6])
 
 with c1:
     if st.button("🔄 Refresh Now"):
+        st.session_state["last_refresh"] = time.time()
         st.cache_data.clear()
         st.rerun()
 
 with c2:
-    auto_refresh = st.toggle("⏱ Auto Refresh (30 min)", value=False)
+    auto_refresh = st.toggle("⏱ Auto Refresh (5 min)", value=False)
 
 with c3:
     st.caption("Manual refresh forces fresh NOAA weather + NG demand recalculation")
+
+
 # =====================================================
-# AUTO REFRESH TIMER (SAFE)
+# AUTO REFRESH ENGINE (SAFE & TIMED)
+# =====================================================
+# =====================================================
+# AUTO REFRESH TIMER (NO LIBRARY, NO LOOP)
 # =====================================================
 if auto_refresh:
     now = time.time()
     last = st.session_state.get("last_refresh", 0)
 
-    if now - last > 30 * 60:  # 30 minutes
+    if now - last >= 5 * 60:  # 30 minutes
         st.session_state["last_refresh"] = now
         st.cache_data.clear()
         st.rerun()
-
 
 
 
