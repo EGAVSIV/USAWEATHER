@@ -37,6 +37,20 @@ st.set_page_config(
     layout="wide"
 )
 
+# =====================================================
+# MANUAL REFRESH (FORCE RELOAD)
+# =====================================================
+col1, col2 = st.columns([1, 6])
+
+with col1:
+    if st.button("🔄 Refresh Data"):
+        st.cache_data.clear()
+        st.rerun()
+
+with col2:
+    st.caption("Click to force fresh NOAA weather fetch & demand recalculation")
+
+
 HEADERS = {"User-Agent": "ng-weather-dashboard"}
 
 HEATWAVE_TEMP = 35
