@@ -33,11 +33,10 @@ if not st.session_state.authenticated:
 # CONFIG
 # =====================================================
 st.set_page_config(page_title="NG Demand vs Price Intelligence", layout="wide")
-
 HEADERS = {"User-Agent": "ng-weather-dashboard"}
 
 # =====================================================
-# STATES (Population Weighted – SAME AS BEFORE)
+# STATES (Population Weighted)
 # =====================================================
 US_STATES = {
     "Texas": ("Austin", 30.2672, -97.7431, 29.1),
@@ -53,75 +52,20 @@ US_STATES = {
 def f_to_c(f):
     return (f - 32) * 5 / 9
 
-def get_hourly_observed(lat, lon, days=7):
-    """Past observed hourly temps"""
-    end = datetime.utcnow()
-    start = end - timedelta(days=days)
-
-    url = f"https://api.weather.gov/points/{lat},{lon}"
-    p = requests.get(url, headers=HEADERS)
-    if p.status_code != 200:
-        return []
-
-    stations_url = p.json()["properties"]["observationStations"]
-    s = requests.get(stations_url, headers=HEADERS).json()
-    station = s["features"][0]["id"]
-
-    obs_url = f"{station}/observations"
-    params = {
-        "start": start.isoformat() + "Z",
-        "end": end.isoformat() + "Z"
-    }
-    r = requests.get(obs_url, headers=HEADERS, params=params)
-    if r.status_code != 200:
-        return []
-
-    return r.json()["features"]
-
 def get_hourly_forecast(lat, lon):
     p = requests.get(f"https://api.weather.gov/points/{lat},{lon}", headers=HEADERS)
     if p.status_code != 200:
         return []
     url = p.json()["properties"]["forecastHourly"]
     h = requests.get(url, headers=HEADERS)
+    if h.status_code != 200:
+        return []
     return h.json()["properties"]["periods"][:48]
 
-# =====================================================
-# BUILD DEMAND (SAME FORMULA)
-# =====================================================
 def calc_ng_demand(temp_c):
     hdd = max(18 - temp_c, 0)
     cdd = max(temp_c - 22, 0)
     return hdd * 1.3 + cdd * 0.7
-
-# =====================================================
-# HISTORICAL DEMAND (OBSERVED)
-# =====================================================
-st.title("📈 Natural Gas Demand vs Price (Historical + Forecast)")
-
-hist_rows = []
-
-with st.spinner("Fetching historical observed temperatures..."):
-    for state, (_, lat, lon, pop) in US_STATES.items():
-        obs = get_hourly_observed(lat, lon, days=7)
-        for o in obs:
-            t = o["properties"]["temperature"]["value"]
-            if t is None:
-                continue
-            hist_rows.append({
-                "Date": pd.to_datetime(o["properties"]["timestamp"]).date(),
-                "Demand": calc_ng_demand(t),
-                "Population": pop
-            })
-
-df_hist = pd.DataFrame(hist_rows)
-
-hist_daily = (
-    df_hist.assign(Weighted=lambda x: x["Demand"] * x["Population"])
-    .groupby("Date")["Weighted"]
-    .sum()
-    .reset_index(name="NG_Demand")
-)
 
 # =====================================================
 # FUTURE DEMAND (FORECAST)
@@ -132,84 +76,99 @@ for state, (_, lat, lon, pop) in US_STATES.items():
     fc = get_hourly_forecast(lat, lon)
     for h in fc:
         fut_rows.append({
-            "Date": pd.to_datetime(h["startTime"]).date(),
+            "Time": pd.to_datetime(h["startTime"]),
             "Demand": calc_ng_demand(f_to_c(h["temperature"])),
             "Population": pop
         })
 
 df_fut = pd.DataFrame(fut_rows)
 
-fut_daily = (
-    df_fut.assign(Weighted=lambda x: x["Demand"] * x["Population"])
-    .groupby("Date")["Weighted"]
+df_fut["Weighted"] = df_fut["Demand"] * df_fut["Population"]
+
+hourly_weighted = (
+    df_fut.groupby("Time")["Weighted"]
     .sum()
-    .reset_index(name="NG_Demand")
+    .reset_index()
 )
 
 # =====================================================
-# PRICE DATA (TV DATAFEED)
+# BIAS CALCULATION (🔥 MISSING PART — FIXED)
+# =====================================================
+now = hourly_weighted["Time"].min()
+
+prev_24 = hourly_weighted[
+    (hourly_weighted["Time"] >= now) &
+    (hourly_weighted["Time"] < now + pd.Timedelta(hours=24))
+]
+
+next_24 = hourly_weighted[
+    (hourly_weighted["Time"] >= now + pd.Timedelta(hours=24)) &
+    (hourly_weighted["Time"] < now + pd.Timedelta(hours=48))
+]
+
+prev_mean = prev_24["Weighted"].mean()
+next_mean = next_24["Weighted"].mean()
+
+pct_change = ((next_mean - prev_mean) / prev_mean) * 100
+
+if pct_change > 5:
+    bias = "🟢 Bullish Natural Gas"
+elif pct_change > 2:
+    bias = "🟡 Mild Bullish"
+elif pct_change >= -2:
+    bias = "⚪ Neutral"
+elif pct_change >= -5:
+    bias = "🟠 Mild Bearish"
+else:
+    bias = "🔴 Bearish Natural Gas"
+
+# =====================================================
+# PRICE DATA (DAILY, GAP-FREE)
 # =====================================================
 tv = TvDatafeed()
 price = tv.get_hist(
     symbol="NATURALGAS",
     exchange="CAPITALCOM",
     interval=Interval.in_daily,
-    n_bars=30
+    n_bars=90
 )
 
 price = price.reset_index()[["datetime", "close"]]
-price["Date"] = price["datetime"].dt.date
-price.rename(columns={"close": "NG_Price"}, inplace=True)
+price["Date"] = pd.to_datetime(price["datetime"]).dt.date
+price.rename(columns={"close": "Price"}, inplace=True)
+
+all_days = pd.date_range(price["Date"].min(), price["Date"].max(), freq="D")
+
+price = (
+    price.set_index("Date")
+    .reindex(all_days)
+    .rename_axis("Date")
+    .reset_index()
+)
+
+price["Price"] = price["Price"].ffill()
 
 # =====================================================
-# PLOT
+# CHART
 # =====================================================
 fig, ax1 = plt.subplots(figsize=(13, 6))
 
-# Historical
-ax1.plot(hist_daily["Date"], hist_daily["NG_Demand"],
-         label="NG Demand (Observed)", linewidth=2)
+ax1.plot(hourly_weighted["Time"], hourly_weighted["Weighted"],
+         label="NG Demand (Forecast)", linestyle="--", linewidth=2)
 
-# Forecast (dotted)
-ax1.plot(fut_daily["Date"], fut_daily["NG_Demand"],
-         linestyle="--", label="NG Demand (Forecast)", linewidth=2)
-
-ax1.set_ylabel("NG Demand (Weighted Index)")
+ax1.set_ylabel("Population Weighted Demand")
 ax1.grid(alpha=0.3)
 
 ax2 = ax1.twinx()
-
-ax2.plot(price["Date"], price["NG_Price"],
-         color="black", linewidth=2, label="NG Price")
-
-# Price projection placeholder (dotted)
-ax2.plot(
-    [price["Date"].iloc[-1], fut_daily["Date"].iloc[-1]],
-    [price["NG_Price"].iloc[-1], price["NG_Price"].iloc[-1]],
-    linestyle="--",
-    color="black",
-    label="Price Projection (Model)"
-)
-
+ax2.plot(price["Date"], price["Price"], color="black", linewidth=2, label="NG Price")
 ax2.set_ylabel("NG Price")
 
 fig.legend(loc="upper left")
 st.pyplot(fig)
 
 # =====================================================
-# TABLE
+# COLOR-WISE BIAS DISPLAY
 # =====================================================
-st.subheader("📊 Historical NG Demand")
-st.dataframe(hist_daily, use_container_width=True)
-
-st.subheader("🔮 Forecast NG Demand")
-st.dataframe(fut_daily, use_container_width=True)
-
-
-# =====================================================
-# COLOR-WISE NG BIAS DISPLAY (OLD LOGIC – VISUAL)
-# =====================================================
-st.divider()
 st.subheader("🎯 Natural Gas Bias Indicator")
 
 bias_color_map = {
@@ -234,80 +193,19 @@ st.markdown(
 )
 
 # =====================================================
-# VERDICT LINE (TRADER READY)
+# VERDICT
 # =====================================================
-st.divider()
-
 if "Bullish" in label:
-    verdict = (
-        "📈 **Verdict:** Weather-driven demand is increasing. "
-        "Natural Gas is likely to remain **firm to bullish** over the next 24–48 hours."
-    )
+    verdict = "📈 Weather-driven demand supports **bullish Natural Gas** in the next 24–48 hours."
 elif "Bearish" in label:
-    verdict = (
-        "📉 **Verdict:** Weather-driven demand is weakening. "
-        "Natural Gas may face **downside pressure** in the near term."
-    )
+    verdict = "📉 Weather-driven demand weakens — **downside risk** for Natural Gas."
 else:
-    verdict = (
-        "⚖️ **Verdict:** Weather-driven demand is stable. "
-        "Natural Gas may remain **range-bound** unless new triggers emerge."
-    )
+    verdict = "⚖️ Weather-driven demand stable — Natural Gas likely **range-bound**."
 
 st.success(verdict)
 
 # =====================================================
-# DAY-WISE PRICE MOVEMENT (NO WEEKLY GAP)
+# TABLE
 # =====================================================
-st.divider()
-st.subheader("📊 Day-wise Natural Gas Price Movement (Gap-Free)")
-
-from tvDatafeed import TvDatafeed, Interval
-
-@st.cache_data(show_spinner=False)
-def fetch_daily_price():
-    tv = TvDatafeed()
-    df = tv.get_hist(
-        symbol="NATURALGAS",
-        exchange="CAPITALCOM",
-        interval=Interval.in_daily,
-        n_bars=90
-    )
-    if df is None or df.empty:
-        return pd.DataFrame()
-
-    df = df.reset_index()
-    df = df.rename(columns={"datetime": "Date", "close": "Price"})
-    df["Date"] = pd.to_datetime(df["Date"]).dt.date
-
-    # 👉 Create continuous date range (NO WEEKLY GAPS)
-    all_days = pd.date_range(
-        start=df["Date"].min(),
-        end=df["Date"].max(),
-        freq="D"
-    )
-
-    df = (
-        df.set_index("Date")
-          .reindex(all_days)
-          .rename_axis("Date")
-          .reset_index()
-    )
-
-    # Forward-fill price for non-trading days (visual continuity)
-    df["Price"] = df["Price"].ffill()
-
-    return df
-
-price_df = fetch_daily_price()
-
-st.dataframe(price_df.tail(30), use_container_width=True)
-
-# =====================================================
-# OPTIONAL SIMPLE LINE CHART (STREAMLIT)
-# =====================================================
-st.line_chart(
-    price_df.set_index("Date")["Price"],
-    height=350
-)
-
+st.subheader("📊 Gap-Free Daily Price")
+st.dataframe(price.tail(30), use_container_width=True)
