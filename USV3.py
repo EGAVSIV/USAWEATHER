@@ -34,7 +34,7 @@ if not st.session_state.authenticated:
 # CONFIG
 # =====================================================
 st.set_page_config(
-    page_title="USA Weather → Natural Gas Intelligence",
+    page_title="USA Weather → Natural Gas Intelligence_By_Gaurav",
     layout="wide"
 )
 
@@ -166,7 +166,7 @@ def classify_weather(temp):
 # =====================================================
 # DATA COLLECTION
 # =====================================================
-st.title("🇺🇸 USA Weather → Natural Gas Intelligence")
+st.title("USA Weather → Natural Gas Intelligence")
 st.caption("Population-Weighted | Forecast-Driven | Trader Ready")
 
 summary_rows = []
