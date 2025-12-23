@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 from datetime import datetime
 import hashlib
+import time
 
 # =====================================================
 # LOGIN
@@ -38,12 +39,15 @@ st.set_page_config(
 )
 
 # =====================================================
-# 🔄 MANUAL + AUTO REFRESH
+# 🔄 MANUAL + AUTO REFRESH (STABLE VERSION)
 # =====================================================
+
+
 c1, c2, c3 = st.columns([1.2, 1.8, 6])
 
 with c1:
     if st.button("🔄 Refresh Now"):
+        st.session_state["last_refresh"] = time.time()
         st.cache_data.clear()
         st.rerun()
 
@@ -53,14 +57,22 @@ with c2:
 with c3:
     st.caption("Manual refresh forces fresh NOAA weather + NG demand recalculation")
 
+
 # =====================================================
 # AUTO REFRESH ENGINE (SAFE & TIMED)
 # =====================================================
+# =====================================================
+# AUTO REFRESH TIMER (NO LIBRARY, NO LOOP)
+# =====================================================
 if auto_refresh:
-    st_autorefresh(
-        interval=30 * 60 * 1000,  # 30 minutes
-        key="ng_weather_auto_refresh"
-    )
+    now = time.time()
+    last = st.session_state.get("last_refresh", 0)
+
+    if now - last >= 30 * 60:  # 30 minutes
+        st.session_state["last_refresh"] = now
+        st.cache_data.clear()
+        st.rerun()
+
 
 
 
