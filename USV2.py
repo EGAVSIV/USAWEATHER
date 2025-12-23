@@ -13,6 +13,7 @@ import feedparser
 from tvDatafeed import TvDatafeed, Interval
 import socket, ssl, time
 import hashlib
+import time
 
 def hash_pwd(pwd):
     return hashlib.sha256(pwd.encode()).hexdigest()
@@ -41,6 +42,33 @@ if not st.session_state.authenticated:
 # STREAMLIT CONFIG
 # =====================================================
 st.set_page_config(page_title="NG Intelligence Pro", layout="wide")
+
+# 🔄 MANUAL + AUTO REFRESH (NO EXTERNAL LIB)
+# =====================================================
+c1, c2, c3 = st.columns([1.2, 1.8, 6])
+
+with c1:
+    if st.button("🔄 Refresh Now"):
+        st.cache_data.clear()
+        st.rerun()
+
+with c2:
+    auto_refresh = st.toggle("⏱ Auto Refresh (5 min)", value=False)
+
+with c3:
+    st.caption("Manual refresh forces fresh NOAA weather + NG demand recalculation")
+# =====================================================
+# AUTO REFRESH TIMER (SAFE)
+# =====================================================
+if auto_refresh:
+    now = time.time()
+    last = st.session_state.get("last_refresh", 0)
+
+    if now - last > 5 * 60:  # 30 minutes
+        st.session_state["last_refresh"] = now
+        st.cache_data.clear()
+        st.rerun()
+
 
 # =====================================================
 # TELEGRAM CONFIG
