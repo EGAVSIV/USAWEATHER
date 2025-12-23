@@ -1,11 +1,16 @@
 import streamlit as st
 import hashlib
+import sys
+import os
+
+# 🔑 Ensure same-folder imports work on Streamlit Cloud
+sys.path.append(os.path.dirname(__file__))
 
 from USV1 import run as run_usv1
 from USV2 import run as run_usv2
 from USV3 import run as run_usv3
 from USWF import run as run_uswf
-from USAW import run as run_usaw
+from USAW import run as run_usaw   # 👈 FIXED CASE
 
 # =====================================================
 # PAGE CONFIG (ONLY ONCE)
@@ -17,7 +22,7 @@ st.set_page_config(
 )
 
 # =====================================================
-# LOGIN (ONLY ONCE)
+# LOGIN
 # =====================================================
 def hash_pwd(pwd):
     return hashlib.sha256(pwd.encode()).hexdigest()
@@ -39,7 +44,6 @@ if not st.session_state.authenticated:
             st.rerun()
         else:
             st.error("Invalid credentials")
-
     st.stop()
 
 # =====================================================
@@ -49,8 +53,8 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 USV1",
     "📈 USV2",
     "🧠 USV3",
-    "🌦 US Weather",
-    "🇺🇸 USA Analytics"
+    "🌦 US Weather (USWF)",
+    "🇺🇸 USA Analytics (USAW)"
 ])
 
 with tab1:
