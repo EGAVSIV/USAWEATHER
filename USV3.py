@@ -38,17 +38,30 @@ st.set_page_config(
 )
 
 # =====================================================
-# MANUAL REFRESH (FORCE RELOAD)
+# 🔄 MANUAL + AUTO REFRESH
 # =====================================================
-col1, col2 = st.columns([1, 6])
+c1, c2, c3 = st.columns([1.2, 1.8, 6])
 
-with col1:
-    if st.button("🔄 Refresh Data"):
+with c1:
+    if st.button("🔄 Refresh Now"):
         st.cache_data.clear()
         st.rerun()
 
-with col2:
-    st.caption("Click to force fresh NOAA weather fetch & demand recalculation")
+with c2:
+    auto_refresh = st.toggle("⏱ Auto Refresh (30 min)", value=False)
+
+with c3:
+    st.caption("Manual refresh forces fresh NOAA weather + NG demand recalculation")
+
+# =====================================================
+# AUTO REFRESH ENGINE (SAFE & TIMED)
+# =====================================================
+if auto_refresh:
+    st_autorefresh(
+        interval=30 * 60 * 1000,  # 30 minutes
+        key="ng_weather_auto_refresh"
+    )
+
 
 
 HEADERS = {"User-Agent": "ng-weather-dashboard"}
