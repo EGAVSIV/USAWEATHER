@@ -52,7 +52,7 @@ with c1:
         st.rerun()
 
 with c2:
-    auto_refresh = st.toggle("⏱ Auto Refresh (30 min)", value=False)
+    auto_refresh = st.toggle("⏱ Auto Refresh (5 min)", value=False)
 
 with c3:
     st.caption("Manual refresh forces fresh NOAA weather + NG demand recalculation")
@@ -68,7 +68,7 @@ if auto_refresh:
     now = time.time()
     last = st.session_state.get("last_refresh", 0)
 
-    if now - last >= 30 * 60:  # 30 minutes
+    if now - last >= 05 * 60:  # 30 minutes
         st.session_state["last_refresh"] = now
         st.cache_data.clear()
         st.rerun()
