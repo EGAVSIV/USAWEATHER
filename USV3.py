@@ -240,3 +240,13 @@ st.download_button(
     csv,
     "ng_forecast_demand.csv"
 )
+
+st.markdown("""
+---
+**Designed by:-  
+Gaurav Singh Yadav**   
+🩷💛🩵💙🩶💜🤍🤎💖  Built With Love 🫶  
+Energy | Commodity | Quant Intelligence 📶  
+📱 +91-8003994518 〽️   
+📧 yadav.gauravsingh@gmail.com ™️
+""")
