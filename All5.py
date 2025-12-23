@@ -6,11 +6,8 @@ import os
 # 🔑 Ensure same-folder imports work on Streamlit Cloud
 sys.path.append(os.path.dirname(__file__))
 
-from USV1 import run as run_usv1
-from USV2 import run as run_usv2
-from USV3 import run as run_usv3
-from USWF import run as run_uswf
-from USAW import run as run_usaw   # 👈 FIXED CASE
+# 🔥 TEMPORARY TEST IMPORT
+from test import run as run_test
 
 # =====================================================
 # PAGE CONFIG (ONLY ONCE)
@@ -47,27 +44,9 @@ if not st.session_state.authenticated:
     st.stop()
 
 # =====================================================
-# TABS (5 FILES → 5 TABS)
+# TABS (TEST MODE)
 # =====================================================
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📊 USV1",
-    "📈 USV2",
-    "🧠 USV3",
-    "🌦 US Weather (USWF)",
-    "🇺🇸 USA Analytics (USAW)"
-])
+tab1 = st.tabs(["🧪 Test Tab"])[0]
 
 with tab1:
-    run_usv1()
-
-with tab2:
-    run_usv2()
-
-with tab3:
-    run_usv3()
-
-with tab4:
-    run_uswf()
-
-with tab5:
-    run_usaw()
+    run_test()
