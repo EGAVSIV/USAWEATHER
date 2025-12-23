@@ -58,7 +58,8 @@ with c3:
 # AUTO REFRESH TIMER
 # =====================================================
 if auto_refresh:
-    st.experimental_rerun()
+    st.rerun()
+
 
 
 HEADERS = {"User-Agent": "ng-weather-dashboard"}
