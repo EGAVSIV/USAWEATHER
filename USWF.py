@@ -204,3 +204,110 @@ st.dataframe(hist_daily, use_container_width=True)
 
 st.subheader("🔮 Forecast NG Demand")
 st.dataframe(fut_daily, use_container_width=True)
+
+
+# =====================================================
+# COLOR-WISE NG BIAS DISPLAY (OLD LOGIC – VISUAL)
+# =====================================================
+st.divider()
+st.subheader("🎯 Natural Gas Bias Indicator")
+
+bias_color_map = {
+    "🟢 Bullish Natural Gas": ("Bullish", "🟢", "#d4f8d4"),
+    "🟡 Mild Bullish": ("Mild Bullish", "🟡", "#fff3cd"),
+    "⚪ Neutral": ("Neutral", "⚪", "#e2e3e5"),
+    "🟠 Mild Bearish": ("Mild Bearish", "🟠", "#ffe5d0"),
+    "🔴 Bearish Natural Gas": ("Bearish", "🔴", "#f8d7da"),
+}
+
+label, emoji, bg = bias_color_map[bias]
+
+st.markdown(
+    f"""
+    <div style="padding:20px;border-radius:10px;
+    background-color:{bg};text-align:center;
+    font-size:22px;font-weight:bold;">
+    {emoji} {label}
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# =====================================================
+# VERDICT LINE (TRADER READY)
+# =====================================================
+st.divider()
+
+if "Bullish" in label:
+    verdict = (
+        "📈 **Verdict:** Weather-driven demand is increasing. "
+        "Natural Gas is likely to remain **firm to bullish** over the next 24–48 hours."
+    )
+elif "Bearish" in label:
+    verdict = (
+        "📉 **Verdict:** Weather-driven demand is weakening. "
+        "Natural Gas may face **downside pressure** in the near term."
+    )
+else:
+    verdict = (
+        "⚖️ **Verdict:** Weather-driven demand is stable. "
+        "Natural Gas may remain **range-bound** unless new triggers emerge."
+    )
+
+st.success(verdict)
+
+# =====================================================
+# DAY-WISE PRICE MOVEMENT (NO WEEKLY GAP)
+# =====================================================
+st.divider()
+st.subheader("📊 Day-wise Natural Gas Price Movement (Gap-Free)")
+
+from tvDatafeed import TvDatafeed, Interval
+
+@st.cache_data(show_spinner=False)
+def fetch_daily_price():
+    tv = TvDatafeed()
+    df = tv.get_hist(
+        symbol="NATURALGAS",
+        exchange="CAPITALCOM",
+        interval=Interval.in_daily,
+        n_bars=90
+    )
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    df = df.reset_index()
+    df = df.rename(columns={"datetime": "Date", "close": "Price"})
+    df["Date"] = pd.to_datetime(df["Date"]).dt.date
+
+    # 👉 Create continuous date range (NO WEEKLY GAPS)
+    all_days = pd.date_range(
+        start=df["Date"].min(),
+        end=df["Date"].max(),
+        freq="D"
+    )
+
+    df = (
+        df.set_index("Date")
+          .reindex(all_days)
+          .rename_axis("Date")
+          .reset_index()
+    )
+
+    # Forward-fill price for non-trading days (visual continuity)
+    df["Price"] = df["Price"].ffill()
+
+    return df
+
+price_df = fetch_daily_price()
+
+st.dataframe(price_df.tail(30), use_container_width=True)
+
+# =====================================================
+# OPTIONAL SIMPLE LINE CHART (STREAMLIT)
+# =====================================================
+st.line_chart(
+    price_df.set_index("Date")["Price"],
+    height=350
+)
+
