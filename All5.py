@@ -6,11 +6,12 @@ import os
 # 🔑 Path fix (keep this)
 sys.path.append(os.path.dirname(__file__))
 
+from USAW import run as run_usaw
 from USV1 import run as run_usv1
 from USV2 import run as run_usv2
 from USV3 import run as run_usv3
 from USWF import run as run_uswf
-from USAW import run as run_usaw
+
 
 st.set_page_config(
     page_title="USA Intelligence Platform",
