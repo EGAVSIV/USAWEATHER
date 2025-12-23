@@ -39,6 +39,28 @@ st.set_page_config(
     page_icon="🔥"
 )
 
+# =====================================================
+# 🔄 AUTO / MANUAL REFRESH
+# =====================================================
+c1, c2, c3 = st.columns([1.2, 1.5, 6])
+
+with c1:
+    if st.button("🔄 Refresh Now"):
+        st.cache_data.clear()
+        st.rerun()
+
+with c2:
+    auto_refresh = st.toggle("⏱ Auto Refresh (30 min)", value=False)
+
+with c3:
+    st.caption("Manual refresh forces fresh weather + demand calculation")
+# =====================================================
+# AUTO REFRESH TIMER
+# =====================================================
+if auto_refresh:
+    st.experimental_rerun()
+
+
 HEADERS = {"User-Agent": "ng-weather-dashboard"}
 
 # =====================================================
@@ -219,6 +241,11 @@ st.markdown(
 st.success(
     f"Weather-driven demand supports **{bias.upper()} Natural Gas** for the next 24–48 hours."
 )
+# =====================================================
+# SAFE BIAS STRENGTH (0–100 ONLY)
+# =====================================================
+bias_strength = min(abs(pct), 100)
+remaining_strength = 100 - bias_strength
 
 # =====================================================
 # DONUT CHARTS
@@ -230,12 +257,13 @@ c1, c2 = st.columns(2)
 with c1:
     fig1, ax = plt.subplots()
     ax.pie(
-        [abs(pct), 100 - abs(pct)],
+        [bias_strength, remaining_strength],
         labels=["Bias Strength", "Remaining"],
         colors=[color, "#ecf0f1"],
         startangle=90,
         wedgeprops=dict(width=0.4)
     )
+
     ax.set_title("Bias Strength")
     st.pyplot(fig1)
 
