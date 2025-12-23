@@ -5,7 +5,7 @@ from USV1 import run as run_usv1
 from USV2 import run as run_usv2
 from USV3 import run as run_usv3
 from USWF import run as run_uswf
-from USAw import run as run_usaw
+from USAW import run as run_usaw
 
 # =====================================================
 # PAGE CONFIG (ONLY ONCE)
