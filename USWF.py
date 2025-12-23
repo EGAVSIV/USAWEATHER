@@ -284,3 +284,14 @@ with c2:
 # =====================================================
 st.subheader("📋 Gap-Free Daily Price")
 st.dataframe(price.tail(30), use_container_width=True)
+
+
+st.markdown("""
+---
+**Designed by:-  
+Gaurav Singh Yadav**   
+🩷💛🩵💙🩶💜🤍🤎💖  Built With Love 🫶  
+Energy | Commodity | Quant Intelligence 📶  
+📱 +91-8003994518 〽️   
+📧 yadav.gauravsingh@gmail.com ™️
+""")
