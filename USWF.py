@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from tvDatafeed import TvDatafeed, Interval
 import hashlib
 import numpy as np
+import time
 
 # =====================================================
 # LOGIN
