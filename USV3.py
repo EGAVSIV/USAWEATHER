@@ -68,7 +68,7 @@ if auto_refresh:
     now = time.time()
     last = st.session_state.get("last_refresh", 0)
 
-    if now - last >= 05 * 60:  # 30 minutes
+    if now - last >= 5 * 60:  # 30 minutes
         st.session_state["last_refresh"] = now
         st.cache_data.clear()
         st.rerun()
