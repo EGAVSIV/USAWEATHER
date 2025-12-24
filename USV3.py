@@ -35,7 +35,7 @@ if not st.session_state.authenticated:
 # =====================================================
 st.set_page_config(
     page_title="USA Weather → Natural Gas Intelligence_By_Gaurav",
-    layout="wide"
+    layout="wide",
     page_icon="🔥"
 )
 
