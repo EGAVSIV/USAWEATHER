@@ -33,7 +33,7 @@ if not st.session_state.authenticated:
 # =====================================================
 st.set_page_config(
     page_title="USA Weather → Natural Gas Demand Dashboard",
-    layout="wide"
+    layout="wide",
     page_icon="🔥"
 )
 
