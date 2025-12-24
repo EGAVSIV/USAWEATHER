@@ -34,7 +34,7 @@ if not st.session_state.authenticated:
 # CONFIG
 # =====================================================
 st.set_page_config(
-    page_title="USA Weather → Natural Gas Intelligence_By_Gaurav",
+    page_title="3️⃣ USA Weather → Natural Gas Intelligence_By_Gaurav",
     layout="wide",
     page_icon="🔥"
 )
