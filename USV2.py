@@ -41,7 +41,7 @@ if not st.session_state.authenticated:
 # =====================================================
 # STREAMLIT CONFIG
 # =====================================================
-st.set_page_config(page_title="NG Intelligence Pro", layout="wide",page_icon="🔥")
+st.set_page_config(page_title="2️⃣ NG Intelligence Pro", layout="wide",page_icon="🔥")
 
 # 🔄 MANUAL + AUTO REFRESH (NO EXTERNAL LIB)
 # =====================================================
