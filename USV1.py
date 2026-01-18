@@ -40,6 +40,9 @@ if not st.session_state.authenticated:
 # STREAMLIT CONFIG
 # =====================================================
 st.set_page_config(page_title="1️⃣ NG Intelligence Pro", layout="wide",page_icon="🔥")
+col_logo, col_ticker = st.columns([0.22, 0.78]) 
+with col_logo: 
+    st.image("Assets/sgy1.png", width=220)
 
 # =====================================================
 # 🔄 MANUAL + AUTO REFRESH (NO EXTERNAL LIB)
